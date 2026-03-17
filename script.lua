@@ -12,7 +12,8 @@ _G.Aimlock = false
 _G.FOV = 150
 _G.ShowFOV = true
 _G.TeamCheck = true
-_G.Smoothness = 0.2 -- Độ mượt của Aimlock (càng thấp càng dính)
+_G.Smoothness = 0.1
+_G.ESP_Box = false
 
 -- Vẽ vòng tròn FOV cố định giữa màn hình Mobile
 local Camera = workspace.CurrentCamera
@@ -41,20 +42,12 @@ MainTab:CreateToggle({
 })
 
 MainTab:CreateSlider({
-   Name = "Độ mượt (Smoothness)",
-   Min = 0,
-   Max = 1,
-   Default = 0.2,
-   Callback = function(Value) _G.Smoothness = Value end,
-})
-
-MainTab:CreateSlider({
    Name = "Kích thước FOV",
-   Min = 50, Max = 500, Default = 150,
+   Min = 50, Max = 800, Default = 150,
    Callback = function(Value) _G.FOV = Value end,
 })
 
--- === TAB HIỂN THỊ (ESP FULL) ===
+-- === TAB HIỂN THỊ ===
 VisualTab:CreateSection("ESP Options")
 
 VisualTab:CreateToggle({
@@ -64,31 +57,26 @@ VisualTab:CreateToggle({
 })
 
 VisualTab:CreateToggle({
-   Name = "Hiện ESP Highlight (Box/HP)",
+   Name = "Hiện ESP Highlight (Xuyên tường)",
    CurrentValue = false,
    Callback = function(Value) _G.ESP_Box = Value end,
 })
 
--- === LOGIC AIMLOCK (Dính tâm) ===
+-- === LOGIC AIMLOCK ===
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
 
-local function GetClosestToCenter()
+function GetClosestToCenter()
     local Target = nil
     local MaxDist = _G.FOV
     local Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
             if (_G.TeamCheck and v.Team ~= LocalPlayer.Team) or not _G.TeamCheck then
                 local Pos, OnScreen = Camera:WorldToScreenPoint(v.Character.Head.Position)
                 if OnScreen then
                     local Dist = (Vector2.new(Pos.X, Pos.Y) - Center).Magnitude
-                    if Dist < MaxDist then
-                        Target = v
-                        MaxDist = Dist
-                    end
+                    if Dist < MaxDist then Target = v MaxDist = Dist end
                 end
             end
         end
@@ -96,33 +84,29 @@ local function GetClosestToCenter()
     return Target
 end
 
--- Vòng lặp khóa mục tiêu
 game:GetService("RunService").RenderStepped:Connect(function()
     if _G.Aimlock then
-        local Target = GetClosestToCenter()
-        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
-            -- Tính toán góc quay để tâm súng hướng vào đầu đối thủ
-            local LookAt = CFrame.new(Camera.CFrame.Position, Target.Character.Head.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(LookAt, 1 - _G.Smoothness)
+        local T = GetClosestToCenter()
+        if T and T.Character and T.Character:FindFirstChild("Head") then
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, T.Character.Head.Position), 1 - _G.Smoothness)
         end
     end
 end)
 
--- === LOGIC ESP HIGHLIGHT (Box xuyên tường) ===
+-- === LOGIC ESP ===
 task.spawn(function()
     while task.wait(0.5) do
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 local isEnemy = (p.Team ~= LocalPlayer.Team)
                 if _G.ESP_Box and ((_G.TeamCheck and isEnemy) or not _G.TeamCheck) then
-                    if not p.Character:FindFirstChild("NGUYEN_AIM") then
+                    if not p.Character:FindFirstChild("NGUYEN_ESP") then
                         local hl = Instance.new("Highlight", p.Character)
-                        hl.Name = "NGUYEN_AIM"
-                        hl.FillTransparency = 0.5
+                        hl.Name = "NGUYEN_ESP"
                         hl.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
                     end
                 else
-                    if p.Character:FindFirstChild("NGUYEN_AIM") then p.Character.NGUYEN_AIM:Destroy() end
+                    if p.Character:FindFirstChild("NGUYEN_ESP") then p.Character.NGUYEN_ESP:Destroy() end
                 end
             end
         end

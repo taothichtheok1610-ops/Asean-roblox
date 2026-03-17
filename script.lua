@@ -2,22 +2,19 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Arsenal Mobile | NGUYÊN DZ1620",
-   LoadingTitle = "Đang khởi tạo hệ thống...",
+   LoadingTitle = "Đang khởi tạo Aimlock...",
    LoadingSubtitle = "by NGUYÊN DZ1620",
    ConfigurationSaving = { Enabled = true, FolderName = "NguyenDZ1620_Config", FileName = "ArsenalSettings" }
 })
 
 -- Biến cấu hình
-_G.SilentAim = false
+_G.Aimlock = false
 _G.FOV = 150
 _G.ShowFOV = true
 _G.TeamCheck = true
-_G.ESP_Box = false
-_G.ESP_Line = false
-_G.ESP_Skeleton = false
-_G.ESP_HP = false
+_G.Smoothness = 0.2 -- Độ mượt của Aimlock (càng thấp càng dính)
 
--- Vẽ vòng tròn FOV CỐ ĐỊNH GIỮA MÀN HÌNH (Dành riêng cho Mobile)
+-- Vẽ vòng tròn FOV cố định giữa màn hình Mobile
 local Camera = workspace.CurrentCamera
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
@@ -35,58 +32,59 @@ local MainTab = Window:CreateTab("Chiến đấu", 4483345998)
 local VisualTab = Window:CreateTab("Hiển thị", 4483345998)
 
 -- === TAB CHIẾN ĐẤU ===
-MainTab:CreateSection("Hỗ trợ ngắm Mobile")
+MainTab:CreateSection("Hệ thống Aimlock Mobile")
 
 MainTab:CreateToggle({
-   Name = "Bật Silent Aim",
+   Name = "Bật Aimlock (Khóa mục tiêu)",
    CurrentValue = false,
-   Callback = function(Value) _G.SilentAim = Value end,
+   Callback = function(Value) _G.Aimlock = Value end,
 })
 
-MainTab:CreateToggle({
+MainTab:CreateSlider({
+   Name = "Độ mượt (Smoothness)",
+   Min = 0,
+   Max = 1,
+   Default = 0.2,
+   Callback = function(Value) _G.Smoothness = Value end,
+})
+
+MainTab:CreateSlider({
+   Name = "Kích thước FOV",
+   Min = 50, Max = 500, Default = 150,
+   Callback = function(Value) _G.FOV = Value end,
+})
+
+-- === TAB HIỂN THỊ (ESP FULL) ===
+VisualTab:CreateSection("ESP Options")
+
+VisualTab:CreateToggle({
    Name = "Aim Team Check",
    CurrentValue = true,
    Callback = function(Value) _G.TeamCheck = Value end,
 })
 
-MainTab:CreateSlider({
-   Name = "Kích thước FOV",
-   Min = 50,
-   Max = 500,
-   Default = 150,
-   Callback = function(Value) _G.FOV = Value end,
-})
-
--- === TAB HIỂN THỊ (ĐÃ KHÔI PHỤC VÀ NÂNG CẤP) ===
-VisualTab:CreateSection("ESP Nâng cao")
-
 VisualTab:CreateToggle({
-   Name = "Hiện Highlight (Box xuyên tường)",
+   Name = "Hiện ESP Highlight (Box/HP)",
    CurrentValue = false,
    Callback = function(Value) _G.ESP_Box = Value end,
 })
 
-VisualTab:CreateToggle({
-   Name = "Hiện Line (Đường kẻ)",
-   CurrentValue = false,
-   Callback = function(Value) _G.ESP_Line = Value end,
-})
-
--- === LOGIC HỖ TRỢ NGẮM ===
+-- === LOGIC AIMLOCK (Dính tâm) ===
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
 
-function GetClosestToCenter()
+local function GetClosestToCenter()
     local Target = nil
     local MaxDist = _G.FOV
-    local ScreenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
+    local Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
             if (_G.TeamCheck and v.Team ~= LocalPlayer.Team) or not _G.TeamCheck then
-                local Pos, OnScreen = Camera:WorldToScreenPoint(v.Character.HumanoidRootPart.Position)
+                local Pos, OnScreen = Camera:WorldToScreenPoint(v.Character.Head.Position)
                 if OnScreen then
-                    local Dist = (Vector2.new(Pos.X, Pos.Y) - ScreenCenter).Magnitude
+                    local Dist = (Vector2.new(Pos.X, Pos.Y) - Center).Magnitude
                     if Dist < MaxDist then
                         Target = v
                         MaxDist = Dist
@@ -98,39 +96,33 @@ function GetClosestToCenter()
     return Target
 end
 
--- Silent Aim Hook
-local mt = getrawmetatable(game)
-setreadonly(mt, false)
-local oldNamecall = mt.__namecall
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    if _G.SilentAim and method == "FindPartOnRayWithIgnoreList" then
-        local T = GetClosestToCenter()
-        if T and T.Character and T.Character:FindFirstChild("Head") then
-            args[1] = Ray.new(Camera.CFrame.Position, (T.Character.Head.Position - Camera.CFrame.Position).Unit * 1000)
+-- Vòng lặp khóa mục tiêu
+game:GetService("RunService").RenderStepped:Connect(function()
+    if _G.Aimlock then
+        local Target = GetClosestToCenter()
+        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
+            -- Tính toán góc quay để tâm súng hướng vào đầu đối thủ
+            local LookAt = CFrame.new(Camera.CFrame.Position, Target.Character.Head.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(LookAt, 1 - _G.Smoothness)
         end
     end
-    return oldNamecall(self, unpack(args))
 end)
 
--- LOGIC ESP BOX & LINE (Mượt cho Mobile)
+-- === LOGIC ESP HIGHLIGHT (Box xuyên tường) ===
 task.spawn(function()
     while task.wait(0.5) do
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 local isEnemy = (p.Team ~= LocalPlayer.Team)
-                -- Xử lý Highlight (Box)
                 if _G.ESP_Box and ((_G.TeamCheck and isEnemy) or not _G.TeamCheck) then
-                    if not p.Character:FindFirstChild("NGUYEN_ESP") then
+                    if not p.Character:FindFirstChild("NGUYEN_AIM") then
                         local hl = Instance.new("Highlight", p.Character)
-                        hl.Name = "NGUYEN_ESP"
+                        hl.Name = "NGUYEN_AIM"
                         hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0
-                        hl.FillColor = (isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0))
+                        hl.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
                     end
                 else
-                    if p.Character:FindFirstChild("NGUYEN_ESP") then p.Character.NGUYEN_ESP:Destroy() end
+                    if p.Character:FindFirstChild("NGUYEN_AIM") then p.Character.NGUYEN_AIM:Destroy() end
                 end
             end
         end
@@ -138,8 +130,3 @@ task.spawn(function()
 end)
 
 Rayfield:Init()
-Rayfield:Notify({
-   Title = "NGUYÊN DZ1620",
-   Content = "Đã khôi phục ESP và tối ưu FOV Mobile!",
-   Duration = 5,
-})

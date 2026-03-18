@@ -1,34 +1,61 @@
--- XÓA RÁC CŨ
-for _, v in pairs(game.CoreGui:GetChildren()) do
-    if v.Name == "LineHolder" then v:Destroy() end
+-- XÓA RÁC VÀ LINE CŨ
+local function Clear()
+    for _, v in pairs(game.CoreGui:GetChildren()) do
+        if v.Name == "BeamHolder" then v:Destroy() end
+    end
+    for _, v in pairs(workspace:GetChildren()) do
+        if v.Name == "TargetPart" or v.Name == "Attachment" then v:Destroy() end
+    end
 end
+Clear()
 
 local Camera = workspace.CurrentCamera
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- CẤU HÌNH
-local FOV_SIZE = 150
-local AIM_STICKY = 0.5 -- Tâm dính cực chặt
-local LINE_COLOR = Color3.fromRGB(255, 0, 0) -- Màu đỏ
+-- CẤU HÌNH SIÊU CHIẾN
+_G.FOV_SIZE = 200        -- Tầm quét địch
+_G.ZOOM_VAL = 120        -- Độ Zoom (Càng cao càng nhìn xa, mặc định 70)
+_G.SPIN_SPEED = 40       -- Tốc độ xoay
 
--- Tạo Folder chứa Line để dễ quản lý
-local Holder = Instance.new("ScreenGui", game.CoreGui)
-Holder.Name = "LineHolder"
+-- === TẠO HỆ THỐNG BEAM (LINE CHẮC CHẮN HIỆN) ===
+local BeamGui = Instance.new("ScreenGui", game.CoreGui)
+BeamGui.Name = "BeamHolder"
 
--- === HÀM WALL CHECK (KIỂM TRA VẬT CẢN) ===
+local function CreateBeam(targetPlayer)
+    local part = Instance.new("Part", workspace)
+    part.Name = "TargetPart"
+    part.Transparency = 1
+    part.CanCollide = false
+    part.Anchored = true
+    
+    local att0 = Instance.new("Attachment", workspace.Terrain)
+    local att1 = Instance.new("Attachment", part)
+    
+    local beam = Instance.new("Beam", workspace.Terrain)
+    beam.Attachment0 = att0
+    beam.Attachment1 = att1
+    beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+    beam.Width0 = 0.1
+    beam.Width1 = 0.1
+    beam.FaceCamera = true
+    
+    return part, att0, beam
+end
+
+-- === HÀM WALL CHECK ===
 function IsVisible(TargetPart)
     local RayParams = RaycastParams.new()
     RayParams.FilterType = Enum.RaycastFilterType.Exclude
     RayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    local Result = workspace:Raycast(Camera.CFrame.Position, (TargetPart.Position - Camera.CFrame.Position).Unit * 500, RayParams)
+    local Result = workspace:Raycast(Camera.CFrame.Position, (TargetPart.Position - Camera.CFrame.Position).Unit * 600, RayParams)
     return Result and Result.Instance:IsDescendantOf(TargetPart.Parent)
 end
 
--- === HÀM TÌM MỤC TIÊU ===
+-- === TÌM MỤC TIÊU ===
 function GetTarget()
-    local target, dist = nil, FOV_SIZE
+    local target, dist = nil, _G.FOV_SIZE
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character.Humanoid.Health > 0 then
             if v.Team ~= LocalPlayer.Team then
@@ -43,64 +70,44 @@ function GetTarget()
     return target
 end
 
--- === HÀM TẠO LINE (DÙNG FRAME THAY CHO DRAWING API) ===
-local Lines = {}
-function UpdateLine(player, index)
-    if not Lines[index] then
-        local f = Instance.new("Frame", Holder)
-        f.BorderSizePixel = 0
-        f.BackgroundColor3 = LINE_COLOR
-        f.AnchorPoint = Vector2.new(0.5, 0.5)
-        Lines[index] = f
-    end
-    
-    local line = Lines[index]
-    local head = player.Character:FindFirstChild("HumanoidRootPart")
-    
-    if head then
-        local ScreenPos, OnScreen = Camera:WorldToViewportPoint(head.Position)
-        if OnScreen then
-            local Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-            local Dest = Vector2.new(ScreenPos.X, ScreenPos.Y)
-            local Distance = (Center - Dest).Magnitude
-            
-            line.Visible = true
-            line.Size = UDim2.new(0, Distance, 0, 1.5) -- Độ dày đường kẻ
-            line.Position = UDim2.new(0, (Center.X + Dest.X) / 2, 0, (Center.Y + Dest.Y) / 2)
-            line.Rotation = math.deg(math.atan2(Dest.Y - Center.Y, Dest.X - Center.X))
-        else
-            line.Visible = false
-        end
-    else
-        line.Visible = false
-    end
-end
+-- === VÒNG LẶP ĐIỀU KHIỂN ===
+local ActiveBeams = {}
 
--- === VÒNG LẶP CHÍNH ===
 RunService.RenderStepped:Connect(function()
+    -- 1. ZOOM CAMERA (ROOM CAM)
+    Camera.FieldOfView = _G.ZOOM_VAL
+
     local T = GetTarget()
     
-    -- 1. Aimlock Siêu Chặt
+    -- 2. AIMLOCK SIÊU CHẶT (KHÓA THẲNG KHÔNG DÙNG LERP)
     if T then 
-        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, T.Character.Head.Position), AIM_STICKY) 
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, T.Character.Head.Position)
     end
 
-    -- 2. ESP Line (Dùng Frame nên chắc chắn hiện)
-    local idx = 1
+    -- 3. ESP BEAM LINE
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Team ~= LocalPlayer.Team and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-            UpdateLine(p, idx)
-            idx = idx + 1
+        if p ~= LocalPlayer and p.Character and p.Team ~= LocalPlayer.Team and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
+            local root = p.Character.HumanoidRootPart
+            if not ActiveBeams[p] then
+                local pPart, a0, b = CreateBeam(p)
+                ActiveBeams[p] = {part = pPart, att0 = a0, beam = b}
+            end
+            
+            local data = ActiveBeams[p]
+            data.part.Position = root.Position
+            data.att0.WorldPosition = Camera.CFrame.Position - Vector3.new(0, 2, 0) -- Xuất phát dưới camera một chút
+            data.beam.Enabled = true
+        else
+            if ActiveBeams[p] then
+                ActiveBeams[p].beam.Enabled = false
+            end
         end
     end
-    
-    -- Ẩn các line dư
-    for i = idx, #Lines do Lines[i].Visible = false end
 
-    -- 3. Spin Bot
+    -- 4. SPIN BOT
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(50), 0)
+        LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(_G.SPIN_SPEED), 0)
     end
 end)
 
-print("Script Loaded - No Drawing API Mode")
+game:GetService("StarterGui"):SetCore("SendNotification", {Title = "NGUYÊN DZ1620", Text = "ULTRA AIM + BEAM + ZOOM ĐÃ BẬT!", Duration = 5})

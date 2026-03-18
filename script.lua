@@ -1,127 +1,90 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Sử dụng thư viện Kavo UI (Nhẹ hơn và ổn định hơn Rayfield trên Delta Mobile)
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Arsenal Mobile FIX - Delta", "GrapeTheme")
 
-local Window = Rayfield:CreateWindow({
-   Name = "Arsenal Mobile | NGUYÊN DZ1620",
-   LoadingTitle = "Đang khởi tạo Cheat CS:GO Edition...",
-   LoadingSubtitle = "by NGUYÊN DZ1620",
-   ConfigurationSaving = { Enabled = true, FolderName = "NguyenDZ1620_Config", FileName = "ArsenalSettings" }
-})
-
--- === BIẾN CẤU HÌNH ===
+-- CẤU HÌNH
 _G.Aimlock = false
-_G.SilentAim = false
-_G.SpinBot = false
-_G.SpinSpeed = 50
-_G.Bhop = false -- Biến mới cho B-Hop
+_G.ESP = false
 _G.FOV = 150
-_G.ShowFOV = true
-_G.TeamCheck = true
-_G.Smoothness = 0.5
-_G.ESP_Box = false
+_G.Smoothness = 0.25
 
 local Camera = workspace.CurrentCamera
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- === VÒNG TRÒN FOV ===
+-- Vòng tròn FOV (Dùng bản vẽ cơ bản)
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Transparency = 0.7
+FOVCircle.Filled = false
+FOVCircle.Visible = true
 
-game:GetService("RunService").RenderStepped:Connect(function()
-    FOVCircle.Visible = _G.ShowFOV
-    FOVCircle.Radius = _G.FOV
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-end)
-
--- === LOGIC BUNNY HOP (TỰ NHẢY) ===
-game:GetService("UserInputService").JumpRequest:Connect(function()
-    if _G.Bhop then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Jump = true
-    end
-end)
-
--- === LOGIC SPIN BOT ===
-task.spawn(function()
-    while task.wait() do
-        if _G.SpinBot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(_G.SpinSpeed), 0)
-        end
-    end
-end)
-
--- === HÀM TÌM MỤC TIÊU ===
-function GetClosestToCenter()
-    local Target = nil
-    local MaxDist = _G.FOV
-    local Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+-- Hàm tìm mục tiêu
+function GetTarget()
+    local Closest = nil
+    local Dist = _G.FOV
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            if (_G.TeamCheck and v.Team ~= LocalPlayer.Team) or not _G.TeamCheck then
-                local Pos, OnScreen = Camera:WorldToScreenPoint(v.Character.Head.Position)
-                if OnScreen then
-                    local Dist = (Vector2.new(Pos.X, Pos.Y) - Center).Magnitude
-                    if Dist < MaxDist then Target = v MaxDist = Dist end
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character.Humanoid.Health > 0 then
+            local Pos, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+            if OnScreen then
+                local Mag = (Vector2.new(Pos.X, Pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                if Mag < Dist then
+                    Dist = Mag
+                    Closest = v
                 end
             end
         end
     end
-    return Target
+    return Closest
 end
 
--- === HOOK SILENT AIM (METATABLE) ===
-local mt = getrawmetatable(game)
-local oldIndex = mt.__index
-setreadonly(mt, false)
-mt.__index = newcclosure(function(self, k)
-    if not checkcaller() and _G.SilentAim and (k == "Hit" or k == "Target") then
-        local T = GetClosestToCenter()
-        if T and T.Character and T.Character:FindFirstChild("Head") then
-            return (k == "Hit" and T.Character.Head.CFrame or T.Character.Head)
-        end
-    end
-    return oldIndex(self, k)
+-- Tab Chiến Đấu
+local Main = Window:NewTab("Chiến Đấu")
+local Section = Main:NewSection("Tính năng chính")
+
+Section:NewToggle("Bật Aimlock", "Khóa camera vào đầu", function(state)
+    _G.Aimlock = state
 end)
-setreadonly(mt, true)
 
--- === GIAO DIỆN UI ===
-local MainTab = Window:CreateTab("Chiến đấu", 4483345998)
-local MovementTab = Window:CreateTab("Di chuyển", 4483345998)
-local VisualTab = Window:CreateTab("Hiển thị", 4483345998)
+Section:NewSlider("Kích thước FOV", "Độ rộng vòng tròn ngắm", 500, 50, function(s)
+    _G.FOV = s
+end)
 
--- TAB CHIẾN ĐẤU
-MainTab:CreateSection("--- Ngắm bắn ---")
-MainTab:CreateToggle({ Name = "Silent Aim (Đạn đuổi)", CurrentValue = false, Callback = function(V) _G.SilentAim = V end })
-MainTab:CreateToggle({ Name = "Aimlock (Khóa Cam)", CurrentValue = false, Callback = function(V) _G.Aimlock = V end })
-MainTab:CreateSlider({ Name = "FOV Size", Min = 50, Max = 800, Default = 150, Callback = function(V) _G.FOV = V end })
+-- Tab Hiển Thị
+local Visual = Window:NewTab("Hiển Thị")
+local VisualSec = Visual:NewSection("ESP")
 
--- TAB DI CHUYỂN (MOVEMENT)
-MovementTab:CreateSection("--- CS:GO Style ---")
-MovementTab:CreateToggle({ 
-    Name = "Bunny Hop (Tự nhảy liên tục)", 
-    CurrentValue = false, 
-    Callback = function(V) _G.Bhop = V end 
-})
-MovementTab:CreateToggle({ 
-    Name = "Spin Bot (Xoay tròn)", 
-    CurrentValue = false, 
-    Callback = function(V) _G.SpinBot = V end 
-})
-MovementTab:CreateSlider({ Name = "Tốc độ xoay", Min = 10, Max = 300, Default = 50, Callback = function(V) _G.SpinSpeed = V end })
+VisualSec:NewToggle("Bật ESP Xuyên Tường", "Hiện khung người chơi", function(state)
+    _G.ESP = state
+end)
 
--- TAB HIỂN THỊ
-VisualTab:CreateToggle({ Name = "ESP Xuyên tường", CurrentValue = false, Callback = function(V) _G.ESP_Box = V end })
-VisualTab:CreateToggle({ Name = "Hiện vòng FOV", CurrentValue = true, Callback = function(V) _G.ShowFOV = V end })
-
--- === RENDER STEP ===
+-- Vòng lặp xử lý (RenderStepped)
 game:GetService("RunService").RenderStepped:Connect(function()
+    FOVCircle.Radius = _G.FOV
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    
     if _G.Aimlock then
-        local T = GetClosestToCenter()
-        if T and T.Character and T.Character:FindFirstChild("Head") then
+        local T = GetTarget()
+        if T then
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, T.Character.Head.Position), _G.Smoothness)
         end
     end
 end)
 
-Rayfield:Init()
+-- Logic ESP nhẹ cho Delta
+task.spawn(function()
+    while task.wait(0.7) do
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                if _G.ESP and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                    if not p.Character:FindFirstChild("Highlight") then
+                        local hl = Instance.new("Highlight", p.Character)
+                        hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    end
+                else
+                    if p.Character:FindFirstChild("Highlight") then p.Character.Highlight:Destroy() end
+                end
+            end
+        end
+    end
+end)

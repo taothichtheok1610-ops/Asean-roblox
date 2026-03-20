@@ -1,4 +1,4 @@
--- [[ DUNU MOBILE ULTIMATE: AIM + ESP + AUTO FIRE + FOV ]] --
+-- [[ DUNU MOBILE ULTIMATE: FIX DELAY & NO ACTION ]] --
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
@@ -6,134 +6,146 @@ local Camera = workspace.CurrentCamera
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 
--- CẤU HÌNH
+-- CẤU HÌNH TỐI ƯU
 _G.ENABLED = true
-_G.FOV_SIZE = 130 
+_G.FOV_SIZE = 140 
+_G.AIM_SMOOTH = 0.15 -- Độ mượt (Càng nhỏ càng dính, tăng lên nếu muốn tự nhiên)
 _G.TEAM_CHECK = true
-local MainColor = Color3.fromRGB(150, 50, 255)
+local MainColor = Color3.fromRGB(160, 32, 240)
 
--- === GIAO DIỆN NÚT BẤM DUNU ===
+-- === GUI DUNU (MÀU TÍM) ===
 local ScreenGui = Instance.new("ScreenGui")
-local MainBtn = Instance.new("TextButton")
-local UICorner = Instance.new("UICorner")
-local UIStroke = Instance.new("UIStroke")
-local FOVRing = Instance.new("Frame")
-local FOVCorner = Instance.new("UICorner")
-
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- Cấu hình Vòng tròn FOV
-FOVRing.Name = "DUNU_FOV"
-FOVRing.Parent = ScreenGui
-FOVRing.BackgroundColor3 = MainColor
-FOVRing.BackgroundTransparency = 0.9 -- Rất mờ để không chói mắt
-FOVRing.BorderSizePixel = 0
-FOVRing.Position = UDim2.new(0.5, -_G.FOV_SIZE, 0.5, -_G.FOV_SIZE)
-FOVRing.Size = UDim2.new(0, _G.FOV_SIZE * 2, 0, _G.FOV_SIZE * 2)
-FOVRing.ZIndex = 0
-
-FOVCorner.CornerRadius = UDim.new(1, 0) -- Làm cho Frame thành hình tròn
-FOVCorner.Parent = FOVRing
-
-local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Color = MainColor
-FOVStroke.Thickness = 1
-FOVStroke.Transparency = 0.5
-FOVStroke.Parent = FOVRing
-
--- Cấu hình Nút DUNU
-MainBtn.Name = "DUNU_MOBILE"
+local MainBtn = Instance.new("TextButton")
+MainBtn.Name = "DUNU_BTN"
 MainBtn.Parent = ScreenGui
-MainBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainBtn.Position = UDim2.new(0.5, -60, 0.5, -22)
-MainBtn.Size = UDim2.new(0, 120, 0, 45)
+MainBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainBtn.Position = UDim2.new(0.5, -60, 0.5, -22) -- Bắt đầu ở giữa
+MainBtn.Size = UDim2.new(0, 110, 0, 40)
 MainBtn.Font = Enum.Font.GothamBold
 MainBtn.Text = "🔮 DUNU: ON"
 MainBtn.TextColor3 = MainColor
-MainBtn.TextSize = 16
+MainBtn.TextSize = 14
 MainBtn.Draggable = true
 
-UICorner.CornerRadius = UDim.new(0, 15)
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = MainBtn
+
+local UIStroke = Instance.new("UIStroke")
 UIStroke.Color = MainColor
 UIStroke.Thickness = 2
 UIStroke.Parent = MainBtn
 
--- Hiệu ứng Intro
-task.wait(1)
-TweenService:Create(MainBtn, TweenInfo.new(1.2, Enum.EasingStyle.Quart), {Position = UDim2.new(0.05, 0, 0.4, 0)}):Play()
+-- Vòng FOV Tím
+local FOVFrame = Instance.new("Frame")
+FOVFrame.Parent = ScreenGui
+FOVFrame.BackgroundColor3 = MainColor
+FOVFrame.BackgroundTransparency = 0.95
+FOVFrame.Position = UDim2.new(0.5, -_G.FOV_SIZE, 0.5, -_G.FOV_SIZE)
+FOVFrame.Size = UDim2.new(0, _G.FOV_SIZE * 2, 0, _G.FOV_SIZE * 2)
+local FOVCorner = Instance.new("UICorner")
+FOVCorner.CornerRadius = UDim.new(1, 0)
+FOVCorner.Parent = FOVFrame
 
--- === XỬ LÝ BẬT/TẮT ===
+-- Hiệu ứng Intro
+task.wait(0.5)
+MainBtn:TweenPosition(UDim2.new(0.05, 0, 0.4, 0), "Out", "Quart", 1.5)
+
 MainBtn.MouseButton1Click:Connect(function()
     _G.ENABLED = not _G.ENABLED
-    FOVRing.Visible = _G.ENABLED
-    if _G.ENABLED then
-        MainBtn.Text = "🔮 DUNU: ON"
-        MainBtn.TextColor3 = MainColor
-    else
-        MainBtn.Text = "🔴 DUNU: OFF"
-        MainBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-        for _, v in pairs(Players:GetPlayers()) do
-            if v.Character and v.Character:FindFirstChild("DUNU_ESP") then v.Character.DUNU_ESP:Destroy() end
-        end
-    end
+    MainBtn.Text = _G.ENABLED and "🔮 DUNU: ON" or "🔴 DUNU: OFF"
+    MainBtn.TextColor3 = _G.ENABLED and MainColor or Color3.fromRGB(255, 50, 50)
+    UIStroke.Color = MainBtn.TextColor3
+    FOVFrame.Visible = _G.ENABLED
 end)
 
--- === HÀM ESP (SIÊU NHẸ) ===
-local function AddESP(player)
-    if player == LocalPlayer then return end
-    local function Update()
-        if not _G.ENABLED then return end
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if not player.Character:FindFirstChild("DUNU_ESP") then
-                local Box = Instance.new("BoxHandleAdornment")
-                Box.Name = "DUNU_ESP"
-                Box.Parent = player.Character.HumanoidRootPart
-                Box.Adornee = player.Character.HumanoidRootPart
-                Box.AlwaysOnTop = true
-                Box.Size = player.Character:GetExtentsSize()
-                Box.Transparency = 0.7
-                Box.Color3 = (_G.TEAM_CHECK and player.Team == LocalPlayer.Team) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-            end
-        end
-    end
-    player.CharacterAdded:Connect(Update)
-    task.spawn(function() while task.wait(1) do Update() end end)
-end
-for _, p in pairs(Players:GetPlayers()) do AddESP(p) end
-Players.PlayerAdded:Connect(AddESP)
-
--- === VÒNG LẶP AIMBOT & AUTO FIRE ===
-RunService.RenderStepped:Connect(function()
+-- === HÀM VẼ TIA ĐẠN (FIX LỖI KHÔNG HIỆN) ===
+local function SpawnBeam(startPos, endPos)
     if not _G.ENABLED then return end
+    local p = Instance.new("Part")
+    p.Name = "DUNU_BEAM"
+    p.Parent = workspace
+    p.Anchored = true
+    p.CanCollide = false
+    p.Color = Color3.new(1, 1, 1) -- Tia trắng
+    p.Material = Enum.Material.Neon
+    p.Size = Vector3.new(0.1, 0.1, (startPos - endPos).Magnitude)
+    p.CFrame = CFrame.new(startPos:Lerp(endPos, 0.5), endPos)
+    p.Transparency = 0.4
     
+    task.delay(0.05, function() p:Destroy() end)
+end
+
+-- === HÀM TÌM ĐỊCH TỐI ƯU ===
+local function GetClosestTarget()
     local target = nil
-    local dist = _G.FOV_SIZE
+    local shortestDist = _G.FOV_SIZE
     local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-            if not _G.TEAM_CHECK or v.Team ~= LocalPlayer.Team then
-                local hum = v.Character:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+            local head = v.Character:FindFirstChild("Head")
+            local hum = v.Character:FindFirstChildOfClass("Humanoid")
+            
+            if head and hum and hum.Health > 0 then
+                if not _G.TEAM_CHECK or v.Team ~= LocalPlayer.Team then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
                     if onScreen then
-                        local mag = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                        if mag < dist then
-                            dist = mag
-                            target = v
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            target = head
                         end
                     end
                 end
             end
         end
     end
+    return target
+end
 
-    if target then
-        Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Character.HumanoidRootPart.Position)
-        VirtualUser:Button1Down(Vector2.new(0,0), Camera.CFrame)
+-- === VÒNG LẶP CHÍNH (FIX DELAY) ===
+RunService.RenderStepped:Connect(function()
+    if not _G.ENABLED then return end
+    
+    local targetPart = GetClosestTarget()
+    
+    if targetPart then
+        -- AIM: Sử dụng Lerp để bám mục tiêu cực mượt, không bị khựng
+        local aimPos = targetPart.Position
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPos), _G.AIM_SMOOTH)
+        
+        -- AUTO FIRE: Dùng defer để không làm chậm luồng xử lý Camera
+        task.defer(function()
+            VirtualUser:Button1Down(Vector2.new(0,0), Camera.CFrame)
+            SpawnBeam(Camera.CFrame.Position - Vector3.new(0,1,0), aimPos)
+        end)
     else
         VirtualUser:Button1Up(Vector2.new(0,0), Camera.CFrame)
+    end
+end)
+
+-- ESP BOX (FIXED)
+RunService.Heartbeat:Connect(function()
+    if not _G.ENABLED then return end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local root = p.Character.HumanoidRootPart
+            local esp = root:FindFirstChild("DUNU_ESP")
+            if not esp then
+                esp = Instance.new("BoxHandleAdornment")
+                esp.Name = "DUNU_ESP"
+                esp.Parent = root
+                esp.Adornee = root
+                esp.AlwaysOnTop = true
+                esp.ZIndex = 5
+                esp.Size = p.Character:GetExtentsSize()
+                esp.Transparency = 0.7
+                esp.Color3 = (p.Team == LocalPlayer.Team) and Color3.new(0,1,0) or Color3.new(1,0,0)
+            end
+        end
     end
 end)

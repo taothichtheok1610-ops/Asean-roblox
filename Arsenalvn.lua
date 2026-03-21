@@ -1,72 +1,87 @@
--- [[ CONFIG CHO ARSENAL ]] --
-_G.ENABLED = true
-_G.FOV_SIZE = 120 
-_G.AIM_SMOOTH = 0.08 -- Càng thấp càng dính tâm
-_G.TEAM_CHECK = true 
+-- [[ ĐỢI GAME TẢI XONG RỒI MỚI CHẠY ]] --
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.Players.LocalPlayer and game.Players.LocalPlayer.Character
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
--- Tạo UI đơn giản để Test
-local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-local MainBtn = Instance.new("TextButton", ScreenGui)
-MainBtn.Size = UDim2.new(0, 120, 0, 40)
-MainBtn.Position = UDim2.new(0.1, 0, 0.4, 0)
-MainBtn.Text = "ARSENAL: ON"
-MainBtn.BackgroundColor3 = Color3.fromRGB(160, 32, 240)
-MainBtn.TextColor3 = Color3.new(1,1,1)
+-- Cấu hình ngầm (Bật sẵn 100%)
+local FOV = 140
+local SMOOTH = 0.08
+local COLOR = Color3.fromRGB(160, 32, 240)
 
--- Vòng tròn FOV (Dùng để ngắm)
-local FOVFrame = Instance.new("Frame", ScreenGui)
-FOVFrame.Size = UDim2.new(0, _G.FOV_SIZE * 2, 0, _G.FOV_SIZE * 2)
-FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-FOVFrame.BackgroundTransparency = 0.8
-FOVFrame.BackgroundColor3 = Color3.fromRGB(160, 32, 240)
-local Corner = Instance.new("UICorner", FOVFrame)
-Corner.CornerRadius = UDim.new(1, 0)
+-- Tạo Folder ẩn trong PlayerGui để lách Anti-Cheat
+local UI = Instance.new("ScreenGui")
+UI.Name = "RobloxGui_Internal_" .. math.random(100, 999) -- Tên giả hệ thống
+UI.Parent = LocalPlayer:WaitForChild("PlayerGui")
+UI.ResetOnSpawn = false
 
-MainBtn.MouseButton1Click:Connect(function()
-    _G.ENABLED = not _G.ENABLED
-    MainBtn.Text = _G.ENABLED and "ARSENAL: ON" or "ARSENAL: OFF"
-    FOVFrame.Visible = _G.ENABLED
-end)
+local function CreateLine()
+    local l = Instance.new("Frame")
+    l.BackgroundColor3 = COLOR
+    l.BorderSizePixel = 0
+    l.AnchorPoint = Vector2.new(0.5, 0.5)
+    l.Visible = false
+    l.Parent = UI
+    return l
+end
 
--- Hàm tìm mục tiêu chuẩn Arsenal
-local function GetClosestPlayer()
+local PlayerLines = {}
+
+-- Vòng lặp điều khiển chính
+RunService.Heartbeat:Connect(function()
     local target = nil
-    local dist = _G.FOV_SIZE
-    
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") then
-            -- Kiểm tra Team trong Arsenal
-            if not _G.TEAM_CHECK or v.Team ~= LocalPlayer.Team then
-                local head = v.Character.Head
+    local shortest = FOV
+    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
+            -- Chỉ hiện địch (Team Check)
+            if p.Team ~= LocalPlayer.Team then
+                local head = p.Character.Head
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
                 local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                
+
+                -- 1. AIMLOCK
                 if onScreen then
-                    local mouseDist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
-                    if mouseDist < dist then
-                        dist = mouseDist
+                    local mag = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if mag < shortest then
+                        shortest = mag
                         target = head
                     end
                 end
+
+                -- 2. ESP LINE (Dùng Frame)
+                if hrp then
+                    local line = PlayerLines[p] or CreateLine()
+                    PlayerLines[p] = line
+                    
+                    local sPos, visible = Camera:WorldToViewportPoint(hrp.Position)
+                    if visible then
+                        local start = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                        local endP = Vector2.new(sPos.X, sPos.Y)
+                        local dist = (endP - start).Magnitude
+                        
+                        line.Size = UDim2.new(0, 2, 0, dist)
+                        line.Position = UDim2.new(0, (start.X + endP.X)/2, 0, (start.Y + endP.Y)/2)
+                        line.Rotation = math.deg(math.atan2(endP.Y - start.Y, endP.X - start.X)) - 90
+                        line.Visible = true
+                    else
+                        line.Visible = false
+                    end
+                end
+            else
+                if PlayerLines[p] then PlayerLines[p].Visible = false end
             end
         end
     end
-    return target
-end
 
--- Vòng lặp khóa tâm (Dùng RenderStepped cho game bắn súng)
-RunService.RenderStepped:Connect(function()
-    if _G.ENABLED then
-        local target = GetClosestPlayer()
-        if target then
-            -- Cách khóa tâm mới: Thay đổi hướng nhìn thay vì gán cứng CFrame
-            local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(lookAt, _G.AIM_SMOOTH)
-        end
+    -- Khóa tâm mượt
+    if target then
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, target.Position), SMOOTH)
     end
 end)
+
+warn("DUNU SYSTEM: READY!")

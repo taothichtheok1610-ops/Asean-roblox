@@ -11,8 +11,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-
--- Chuyển sang PlayerGui để tránh lỗi phân quyền trên Mobile
 local ESPFolder = Instance.new("Folder")
 ESPFolder.Name = "MobileESP"
 pcall(function()

@@ -1,39 +1,238 @@
--- MOBILE ESP MENU - REWRITTEN & FIXED FOR DELTA / MOBILE EXECUTORS
+-- MOBILE ESP MENU (FIX DÀNH RIÊNG CHO DELTA X / MOBILE EXECUTORS)
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
--- Cấu hình mặc định
+-- Trạng thái bật/tắt
 local Settings = {
 	ESP = true,
-	Skeleton = true,
+	Box = true,
 	Health = true,
+	Skeleton = true,
 }
-
-local CONFIG = {
-	HighlightColor = Color3.fromRGB(255, 0, 0),
-	SkeletonColor = Color3.fromRGB(0, 255, 255),
-	SkeletonThickness = 0.1,
-}
-
-local R15_BONES = {
-	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
-	{"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
-	{"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
-	{"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
-	{"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
-}
-
-local R6_BONES = {
-	{"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
-	{"Torso", "Left Leg"}, {"Torso", "Right Leg"},
-}
-
-local ESP_Folder = workspace:FindFirstChild("ESP_Storage") or Instance.new("Folder", workspace)
-ESP_Folder.Name = "ESP_Storage"
 
 ----------------------------------------------------
+-- 1. TẠO GIAO DIỆN MENU MOBILE
+----------------------------------------------------
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Xóa UI cũ nếu có
+if playerGui:FindFirstChild("ESP_Mobile_Fix") then
+	playerGui.ESP_Mobile_Fix:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_Mobile_Fix"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 9999
+screenGui.Parent = playerGui
+
+-- Nút tròn Bật/Tắt Menu
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleBtn"
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Text = "ESP"
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 16
+toggleBtn.Active = true
+toggleBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleBtn
+
+-- Khung Menu
+local menuFrame = Instance.new("Frame")
+menuFrame.Name = "MainFrame"
+menuFrame.Size = UDim2.new(0, 180, 0, 230)
+menuFrame.Position = UDim2.new(0.05, 0, 0.35, 0)
+menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+menuFrame.BackgroundTransparency = 0.1
+menuFrame.Visible = false
+menuFrame.Parent = screenGui
+
+local menuCorner = Instance.new("UICorner")
+menuCorner.CornerRadius = UDim.new(0, 10)
+menuCorner.Parent = menuFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 35)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "DELTA ESP MENU"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 15
+titleLabel.Parent = menuFrame
+
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, -20, 1, -40)
+container.Position = UDim2.new(0, 10, 0, 35)
+container.BackgroundTransparency = 1
+container.Parent = menuFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 6)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.Parent = container
+
+local function createOptionButton(key, text)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, 38)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 13
+	btn.Parent = container
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+
+	local function updateUI()
+		if Settings[key] then
+			btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+			btn.Text = text .. ": ON"
+		else
+			btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+			btn.Text = text .. ": OFF"
+		end
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	end
+
+	updateUI()
+
+	btn.MouseButton1Click:Connect(function()
+		Settings[key] = not Settings[key]
+		updateUI()
+	end)
+end
+
+createOptionButton("ESP", "Nhìn Xuyên Tường")
+createOptionButton("Box", "Hiện Khung (Box)")
+createOptionButton("Health", "Hiện % Máu")
+
+toggleBtn.MouseButton1Click:Connect(function()
+	menuFrame.Visible = not menuFrame.Visible
+end)
+
+----------------------------------------------------
+-- 2. XỬ LÝ LOGIC HIGHLIGHT (ESP XUYÊN TƯỜNG)
+----------------------------------------------------
+local function applyHighlight(character)
+	local highlight = character:FindFirstChild("DeltaHighlight")
+	if not highlight then
+		highlight = Instance.new("Highlight")
+		highlight.Name = "DeltaHighlight"
+		highlight.FillColor = Color3.fromRGB(255, 0, 0)
+		highlight.FillTransparency = 0.5
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Parent = character
+	end
+	highlight.Enabled = Settings.ESP
+end
+
+----------------------------------------------------
+-- 3. XỬ LÝ QUÉT & HIỂN THỊ CHI TIẾT (RENDER LOOP)
+----------------------------------------------------
+local drawFolder = Instance.new("Folder")
+drawFolder.Name = "ESPDrawings"
+drawFolder.Parent = screenGui
+
+local function getPlayerDrawings(player)
+	local name = player.Name
+	local box = drawFolder:FindFirstChild(name .. "_Box")
+	local text = drawFolder:FindFirstChild(name .. "_Text")
+
+	if not box then
+		box = Instance.new("Frame")
+		box.Name = name .. "_Box"
+		box.BackgroundTransparency = 1
+		box.BorderSizePixel = 2
+		box.BorderColor3 = Color3.fromRGB(0, 255, 255)
+		box.Parent = drawFolder
+	end
+
+	if not text then
+		text = Instance.new("TextLabel")
+		text.Name = name .. "_Text"
+		text.BackgroundTransparency = 1
+		text.TextColor3 = Color3.fromRGB(0, 255, 0)
+		text.TextStrokeTransparency = 0
+		text.Font = Enum.Font.SourceSansBold
+		text.TextSize = 12
+		text.Parent = drawFolder
+	end
+
+	return box, text
+end
+
+RunService.RenderStepped:Connect(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local char = player.Character
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			local humanoid = char:FindFirstChild("Humanoid")
+
+			if hrp and humanoid and humanoid.Health > 0 then
+				-- Áp dụng Highlight ESP
+				applyHighlight(char)
+
+				-- Lấy vị trí 3D ra Màn hình 2D
+				local position, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+				local box, text = getPlayerDrawings(player)
+
+				if onScreen then
+					-- Tính toán kích thước Box theo khoảng cách
+					local head = char:FindFirstChild("Head")
+					local headPos = head and Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) or position
+					local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+
+					local height = math.abs(headPos.Y - legPos.Y)
+					local width = height / 1.8
+
+					-- Vẽ Box ESP
+					if Settings.Box then
+						box.Size = UDim2.new(0, width, 0, height)
+						box.Position = UDim2.new(0, position.X - width / 2, 0, position.Y - height / 2)
+						box.Visible = true
+					else
+						box.Visible = false
+					end
+
+					-- Vẽ % Máu
+					if Settings.Health then
+						local hpPercent = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
+						text.Text = string.format("%s [%d%%]", player.DisplayName, hpPercent)
+						text.Position = UDim2.new(0, position.X - 50, 0, position.Y - (height / 2) - 15)
+						text.Size = UDim2.new(0, 100, 0, 15)
+						text.Visible = true
+					else
+						text.Visible = false
+					end
+				else
+					box.Visible = false
+					text.Visible = false
+				end
+			else
+				local box = drawFolder:FindFirstChild(player.Name .. "_Box")
+				local text = drawFolder:FindFirstChild(player.Name .. "_Text")
+				if box then box.Visible = false end
+				if text then text.Visible = false end
+			end
+		end
+	end
+end)
+
+-- Tự dọn dẹp khi người chơi thoát
+Players.PlayerRemoving:Connect(function(player)
+	local box = drawFolder:FindFirstChild(player.Name .. "_Box")
+	local text = drawFolder:FindFirstChild(player.Name .. "_Text")
+	if box then box:Destroy() end
+	if text then text:Destroy() end
+end)
 -- 1. TẠO GIAO DIỆN MOBILE MENU (TỐI ƯU HIỂN THỊ)
 ----------------------------------------------------
 local parentGui = LocalPlayer:FindFirstChild("PlayerGui")

@@ -1,9 +1,6 @@
--- DELTA X ULTIMATE ESP + AIMBOT FOV (WALL CHECK)
+-- DELTA X AIMBOT FOV + WALL CHECK (100% NATIVE UI FIX)
 
--- 1. NGẮT LUỒNG SCRIPT CŨ TRÁNH LẶP MENU
-if _G.Delta_Cleanup then
-	pcall(_G.Delta_Cleanup)
-end
+if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -16,32 +13,26 @@ local Camera = Workspace.CurrentCamera
 local ScriptConnections = {}
 _G.Delta_Cleanup = function()
 	for _, conn in ipairs(ScriptConnections) do
-		if conn and conn.Disconnect then
-			pcall(function() conn:Disconnect() end)
-		end
+		if conn and conn.Disconnect then pcall(function() conn:Disconnect() end) end
 	end
 	ScriptConnections = {}
-	if _G.FOVCircle then
-		pcall(function() _G.FOVCircle:Remove() end)
-	end
 end
 
--- Cấu hình mặc định
 local Settings = {
 	ESP = true,
 	Health = true,
 	Aimbot = true,
 	WallCheck = true,
-	FOVSize = 120, -- Bán kính vòng FOV
+	FOVSize = 120,
 }
 
 ----------------------------------------------------
--- 2. DỌN SẠCH UI CŨ
+-- 1. DỌN SẠCH UI CŨ
 ----------------------------------------------------
 local function wipeOldUI(folder)
 	if not folder then return end
 	for _, child in ipairs(folder:GetChildren()) do
-		if child.Name:find("Delta_UI") then
+		if child.Name:find("Delta_UI") or child.Name:find("Delta_ESP") then
 			child:Destroy()
 		end
 	end
@@ -59,20 +50,7 @@ elseif CoreGui:FindFirstChild("RobloxGui") then
 end
 
 ----------------------------------------------------
--- 3. TẠO VÒNG FOV CIRCLE (DRAWING LIB)
-----------------------------------------------------
-local fovCircle = Drawing.new("Circle")
-fovCircle.Thickness = 1.5
-fovCircle.NumSides = 60
-fovCircle.Radius = Settings.FOVSize
-fovCircle.Filled = false
-fovCircle.Visible = Settings.Aimbot
-fovCircle.Color = Color3.fromRGB(0, 255, 255)
-fovCircle.Transparency = 1
-_G.FOVCircle = fovCircle
-
-----------------------------------------------------
--- 4. TẠO MENU GIAO DIỆN
+-- 2. TẠO VÒNG FOV BẰNG GUI GỐC (HOẠT ĐỘNG 100%)
 ----------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "Delta_UI_" .. math.random(1000, 9999)
@@ -80,7 +58,28 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- Nút Bật/Tắt Menu tròn
+-- Khung vòng tròn FOV
+local fovFrame = Instance.new("Frame")
+fovFrame.Name = "FOVCircle"
+fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+fovFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
+fovFrame.BackgroundTransparency = 1
+fovFrame.Visible = Settings.Aimbot
+fovFrame.Parent = screenGui
+
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(1, 0)
+fovCorner.Parent = fovFrame
+
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = Color3.fromRGB(0, 255, 255)
+fovStroke.Thickness = 1.5
+fovStroke.Parent = fovFrame
+
+----------------------------------------------------
+-- 3. GIAO DIỆN MENU CÓ NÚT AIMBOT & WALL CHECK
+----------------------------------------------------
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
 toggleBtn.Size = UDim2.new(0, 50, 0, 50)
@@ -96,11 +95,10 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(1, 0)
 btnCorner.Parent = toggleBtn
 
--- Khung Menu
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 210, 0, 280)
-menuFrame.Position = UDim2.new(0.25, 0, 0.25, 0)
+menuFrame.Size = UDim2.new(0, 210, 0, 270)
+menuFrame.Position = UDim2.new(0.25, 0, 0.2, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
 menuFrame.Visible = false
@@ -111,8 +109,8 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
--- Drag Menu Mobile
-local dragging, dragInput, dragStart, startPos
+-- Drag Menu
+local dragging, dragStart, startPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
@@ -147,13 +145,13 @@ container.BackgroundTransparency = 1
 container.Parent = menuFrame
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 6)
+listLayout.Padding = UDim.new(0, 5)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = container
 
 local function createToggle(name, text, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 32)
+	btn.Size = UDim2.new(1, 0, 0, 30)
 	btn.Font = Enum.Font.SourceSansBold
 	btn.TextSize = 12
 	btn.Parent = container
@@ -181,24 +179,14 @@ local function createToggle(name, text, callback)
 	end))
 end
 
--- Slider tăng giảm kích thước vòng FOV
+-- Tăng/Giảm Vòng FOV
 local fovControl = Instance.new("Frame")
-fovControl.Size = UDim2.new(1, 0, 0, 40)
+fovControl.Size = UDim2.new(1, 0, 0, 35)
 fovControl.BackgroundTransparency = 1
 fovControl.Parent = container
 
-local fovLabel = Instance.new("TextLabel")
-fovLabel.Size = UDim2.new(1, 0, 0, 15)
-fovLabel.BackgroundTransparency = 1
-fovLabel.Text = "Kích thước FOV: " .. Settings.FOVSize
-fovLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-fovLabel.Font = Enum.Font.SourceSansBold
-fovLabel.TextSize = 12
-fovLabel.Parent = fovControl
-
 local btnMinus = Instance.new("TextButton")
-btnMinus.Size = UDim2.new(0.45, 0, 0, 22)
-btnMinus.Position = UDim2.new(0, 0, 0, 18)
+btnMinus.Size = UDim2.new(0.48, 0, 1, 0)
 btnMinus.Text = "- FOV"
 btnMinus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 btnMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -206,8 +194,8 @@ btnMinus.Font = Enum.Font.SourceSansBold
 btnMinus.Parent = fovControl
 
 local btnPlus = Instance.new("TextButton")
-btnPlus.Size = UDim2.new(0.45, 0, 0, 22)
-btnPlus.Position = UDim2.new(0.55, 0, 0, 18)
+btnPlus.Size = UDim2.new(0.48, 0, 1, 0)
+btnPlus.Position = UDim2.new(0.52, 0, 0, 0)
 btnPlus.Text = "+ FOV"
 btnPlus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 btnPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -215,15 +203,13 @@ btnPlus.Font = Enum.Font.SourceSansBold
 btnPlus.Parent = fovControl
 
 btnMinus.MouseButton1Click:Connect(function()
-	Settings.FOVSize = math.max(30, Settings.FOVSize - 20)
-	fovCircle.Radius = Settings.FOVSize
-	fovLabel.Text = "Kích thước FOV: " .. Settings.FOVSize
+	Settings.FOVSize = math.max(40, Settings.FOVSize - 20)
+	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
 btnPlus.MouseButton1Click:Connect(function()
-	Settings.FOVSize = math.min(500, Settings.FOVSize + 20)
-	fovCircle.Radius = Settings.FOVSize
-	fovLabel.Text = "Kích thước FOV: " .. Settings.FOVSize
+	Settings.FOVSize = math.min(400, Settings.FOVSize + 20)
+	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
@@ -231,7 +217,7 @@ table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 end))
 
 ----------------------------------------------------
--- 5. LOGIC WALLCHECK & AIMBOT
+-- 4. LOGIC AIMBOT & WALL CHECK
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -242,19 +228,15 @@ local function isVisible(targetPart)
 
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	
-	-- Bỏ qua bản thân và kẻ địch đang nhắm tới
-	local ignoreList = {LocalPlayer.Character, targetPart.Parent}
-	raycastParams.FilterDescendantsInstances = ignoreList
+	raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
 
 	local result = Workspace:Raycast(origin, direction, raycastParams)
-	return result == nil -- Nếu không va chạm tường thì là thấy kẻ địch
+	return result == nil
 end
 
 local function getClosestPlayerInFOV()
 	local closestPlayer = nil
 	local shortestDistance = Settings.FOVSize
-
 	local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -267,7 +249,6 @@ local function getClosestPlayerInFOV()
 
 				if onScreen then
 					local distance = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
-
 					if distance < shortestDistance then
 						if isVisible(head) then
 							shortestDistance = distance
@@ -281,15 +262,8 @@ local function getClosestPlayerInFOV()
 	return closestPlayer
 end
 
-----------------------------------------------------
--- 6. RUNSERVICE LOOP (AIMBOT & ESP & FOV UPDATE)
-----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
-	-- Cập nhật vị trí vòng FOV ở chính giữa màn hình
-	fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	fovCircle.Visible = Settings.Aimbot
-
-	-- Aimbot Lock Tâm
+	fovFrame.Visible = Settings.Aimbot
 	if Settings.Aimbot then
 		local targetHead = getClosestPlayerInFOV()
 		if targetHead then
@@ -299,7 +273,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 end))
 
 ----------------------------------------------------
--- 7. KHỞI TẠO NÚT BẤM MENU & ESP
+-- 5. NÚT MENU & TẠO ESP
 ----------------------------------------------------
 createToggle("ESP", "Nhìn Xuyên Tường", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
@@ -310,7 +284,7 @@ createToggle("ESP", "Nhìn Xuyên Tường", function(state)
 	end
 end)
 
-createToggle("Health", "Hiện Tên & Máu", function(state)
+createToggle("Health", "Hiện Tên & % Máu", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 			local ui = p.Character.HumanoidRootPart:FindFirstChild("ESP_HealthUI")

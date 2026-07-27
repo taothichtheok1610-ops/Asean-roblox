@@ -1,4 +1,4 @@
--- DELTA X AIMBOT FOV + WALL CHECK (100% NATIVE UI FIX)
+-- DELTA X ULTIMATE: ESP (BOX, HEALTH, LINE, SKELETON) + AIMBOT FOV
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -21,6 +21,8 @@ end
 local Settings = {
 	ESP = true,
 	Health = true,
+	Lines = true,
+	Skeleton = true,
 	Aimbot = true,
 	WallCheck = true,
 	FOVSize = 120,
@@ -43,22 +45,17 @@ wipeOldUI(CoreGui)
 if gethui then wipeOldUI(gethui()) end
 
 local parentContainer = LocalPlayer:WaitForChild("PlayerGui")
-if gethui then
-	parentContainer = gethui()
-elseif CoreGui:FindFirstChild("RobloxGui") then
-	parentContainer = CoreGui
-end
+if gethui then parentContainer = gethui() elseif CoreGui:FindFirstChild("RobloxGui") then parentContainer = CoreGui end
 
-----------------------------------------------------
--- 2. TẠO VÒNG FOV BẰNG GUI GỐC (HOẠT ĐỘNG 100%)
-----------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "Delta_UI_" .. math.random(1000, 9999)
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- Khung vòng tròn FOV
+----------------------------------------------------
+-- 2. FOV CIRCLE & ESP LINES CONTAINER
+----------------------------------------------------
 local fovFrame = Instance.new("Frame")
 fovFrame.Name = "FOVCircle"
 fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -77,8 +74,12 @@ fovStroke.Color = Color3.fromRGB(0, 255, 255)
 fovStroke.Thickness = 1.5
 fovStroke.Parent = fovFrame
 
+local linesFolder = Instance.new("Folder")
+linesFolder.Name = "ESPLines"
+linesFolder.Parent = screenGui
+
 ----------------------------------------------------
--- 3. GIAO DIỆN MENU CÓ NÚT AIMBOT & WALL CHECK
+-- 3. GIAO DIỆN MENU BẢN MỚI
 ----------------------------------------------------
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
@@ -97,8 +98,8 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 210, 0, 270)
-menuFrame.Position = UDim2.new(0.25, 0, 0.2, 0)
+menuFrame.Size = UDim2.new(0, 220, 0, 320)
+menuFrame.Position = UDim2.new(0.25, 0, 0.15, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
 menuFrame.Visible = false
@@ -130,34 +131,34 @@ table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(i
 end))
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
+title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP & AIMBOT"
+title.Text = "DELTA ESP & AIMBOT FULL"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
-title.TextSize = 15
+title.TextSize = 14
 title.Parent = menuFrame
 
 local container = Instance.new("Frame")
-container.Size = UDim2.new(1, -20, 1, -45)
-container.Position = UDim2.new(0, 10, 0, 35)
+container.Size = UDim2.new(1, -20, 1, -40)
+container.Position = UDim2.new(0, 10, 0, 30)
 container.BackgroundTransparency = 1
 container.Parent = menuFrame
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 5)
+listLayout.Padding = UDim.new(0, 4)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = container
 
 local function createToggle(name, text, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 30)
+	btn.Size = UDim2.new(1, 0, 0, 26)
 	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 12
+	btn.TextSize = 11
 	btn.Parent = container
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
+	corner.CornerRadius = UDim.new(0, 5)
 	corner.Parent = btn
 
 	local function update()
@@ -179,9 +180,9 @@ local function createToggle(name, text, callback)
 	end))
 end
 
--- Tăng/Giảm Vòng FOV
+-- Tăng/Giảm FOV
 local fovControl = Instance.new("Frame")
-fovControl.Size = UDim2.new(1, 0, 0, 35)
+fovControl.Size = UDim2.new(1, 0, 0, 28)
 fovControl.BackgroundTransparency = 1
 fovControl.Parent = container
 
@@ -217,11 +218,23 @@ table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 end))
 
 ----------------------------------------------------
--- 4. LOGIC AIMBOT & WALL CHECK
+-- 4. LOGIC DRAWING LINES (BẰNG FRAME DÀY 2PX)
+----------------------------------------------------
+local function updateLine(lineFrame, p1, p2)
+	local distance = (p2 - p1).Magnitude
+	local angle = math.deg(math.atan2(p2.Y - p1.Y, p2.X - p1.X))
+	
+	lineFrame.Size = UDim2.new(0, distance, 0, 2)
+	lineFrame.Position = UDim2.new(0, (p1.X + p2.X) / 2, 0, (p1.Y + p2.Y) / 2)
+	lineFrame.Rotation = angle
+	lineFrame.Visible = true
+end
+
+----------------------------------------------------
+-- 5. LOGIC AIMBOT & WALL CHECK
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
-	
 	local origin = Camera.CFrame.Position
 	local destination = targetPart.Position
 	local direction = (destination - origin)
@@ -246,14 +259,11 @@ local function getClosestPlayerInFOV()
 
 			if head and humanoid and humanoid.Health > 0 then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-
 				if onScreen then
 					local distance = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
-					if distance < shortestDistance then
-						if isVisible(head) then
-							shortestDistance = distance
-							closestPlayer = head
-						end
+					if distance < shortestDistance and isVisible(head) then
+						shortestDistance = distance
+						closestPlayer = head
 					end
 				end
 			end
@@ -262,20 +272,100 @@ local function getClosestPlayerInFOV()
 	return closestPlayer
 end
 
+----------------------------------------------------
+-- 6. RENDER LOOP (LINE + SKELETON + AIMBOT)
+----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
+
+	-- Aimbot Lock
 	if Settings.Aimbot then
 		local targetHead = getClosestPlayerInFOV()
 		if targetHead then
 			Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
 		end
 	end
+
+	-- Ẩn tất cả Line cũ để vẽ lại
+	for _, l in ipairs(linesFolder:GetChildren()) do
+		l.Visible = false
+	end
+
+	local screenBottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local char = player.Character
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			local humanoid = char:FindFirstChild("Humanoid")
+
+			if hrp and humanoid and humanoid.Health > 0 then
+				local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+
+				-- 1. ESP Line
+				if Settings.Lines and onScreen then
+					local line = linesFolder:FindFirstChild("Line_" .. player.Name) or Instance.new("Frame")
+					line.Name = "Line_" .. player.Name
+					line.AnchorPoint = Vector2.new(0.5, 0.5)
+					line.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+					line.BorderSizePixel = 0
+					line.Parent = linesFolder
+
+					updateLine(line, screenBottom, Vector2.new(hrpPos.X, hrpPos.Y))
+				end
+
+				-- 2. ESP Skeleton (Vẽ bộ xương)
+				if Settings.Skeleton and onScreen then
+					local joints = {
+						{"Head", "UpperTorso"},
+						{"UpperTorso", "LowerTorso"},
+						{"UpperTorso", "LeftUpperArm"},
+						{"LeftUpperArm", "LeftLowerArm"},
+						{"UpperTorso", "RightUpperArm"},
+						{"RightUpperArm", "RightLowerArm"},
+						{"LowerTorso", "LeftUpperLeg"},
+						{"LeftUpperLeg", "LeftLowerLeg"},
+						{"LowerTorso", "RightUpperLeg"},
+						{"RightUpperLeg", "RightLowerLeg"},
+						-- Dự phòng cho R6
+						{"Head", "Torso"},
+						{"Torso", "Left Arm"},
+						{"Torso", "Right Arm"},
+						{"Torso", "Left Leg"},
+						{"Torso", "Right Leg"},
+					}
+
+					for idx, joint in ipairs(joints) do
+						local p1 = char:FindFirstChild(joint[1])
+						local p2 = char:FindFirstChild(joint[2])
+
+						if p1 and p2 then
+							local pos1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+							local pos2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+
+							if vis1 and vis2 then
+								local skelLine = linesFolder:FindFirstChild("Skel_" .. player.Name .. "_" .. idx) or Instance.new("Frame")
+								skelLine.Name = "Skel_" .. player.Name .. "_" .. idx
+								skelLine.AnchorPoint = Vector2.new(0.5, 0.5)
+								skelLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+								skelLine.BorderSizePixel = 0
+								skelLine.Parent = linesFolder
+
+								updateLine(skelLine, Vector2.new(pos1.X, pos1.Y), Vector2.new(pos2.X, pos2.Y))
+							end
+						end
+					end
+				end
+
+			end
+		end
+	end
 end))
 
 ----------------------------------------------------
--- 5. NÚT MENU & TẠO ESP
+-- 7. KHỞI TẠO NÚT BẤM & BOX/HEALTH ESP
 ----------------------------------------------------
-createToggle("ESP", "Nhìn Xuyên Tường", function(state)
+createToggle("ESP", "Hiện Khung (Box 3D)", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 			local box = p.Character.HumanoidRootPart:FindFirstChild("ESP_Box3D")
@@ -293,6 +383,8 @@ createToggle("Health", "Hiện Tên & % Máu", function(state)
 	end
 end)
 
+createToggle("Lines", "Hiện Đường Kẻ (Line)", function(state) end)
+createToggle("Skeleton", "Hiện Bộ Xương (Skeleton)", function(state) end)
 createToggle("Aimbot", "Bật Aimbot FOV", function(state) end)
 createToggle("WallCheck", "Wall Check (Chống tường)", function(state) end)
 

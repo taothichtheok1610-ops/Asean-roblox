@@ -1,116 +1,273 @@
+-- LocalScript trong StarterPlayerScripts (Tích hợp UI Menu cho Mobile)
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
-local HEIGHT_OFFSET = Vector3.new(0, 3.5, 0) -- Độ cao đứng trên đầu đối phương
 
--- Hàm tìm kẻ địch gần nhất (loại trừ đồng đội)
-local function getNearestEnemy()
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
-    
-    local myPos = character.HumanoidRootPart.Position
-    local nearestEnemy = nil
-    local shortestDistance = math.huge
+-- Status cấu hình
+local Settings = {
+	ESP = true,
+	Skeleton = true,
+	Health = true,
+}
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        -- Lọc bỏ bản thân
-        if player ~= LocalPlayer then
-            -- Kiểm tra khác team (Nếu game không phân team thì bỏ điều kiện Team)
-            local isEnemy = true
-            if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
-                isEnemy = false
-            end
+local CONFIG = {
+	HighlightColor = Color3.fromRGB(255, 0, 0),
+	SkeletonColor = Color3.fromRGB(0, 255, 255),
+	SkeletonThickness = 0.1,
+}
 
-            if isEnemy then
-                local enemyChar = player.Character
-                if enemyChar and enemyChar:FindFirstChild("Head") and enemyChar:FindFirstChildOfClass("Humanoid") then
-                    local humanoid = enemyChar:FindFirstChildOfClass("Humanoid")
-                    
-                    -- Chỉ chọn người còn sống
-                    if humanoid.Health > 0 then
-                        local distance = (enemyChar.Head.Position - myPos).Magnitude
-                        if distance < shortestDistance then
-                            shortestDistance = distance
-                            nearestEnemy = enemyChar
-                        end
-                    end
-                end
-            end
-        end
-    end
+local R15_BONES = {
+	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+	{"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+	{"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
+	{"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+	{"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
+}
 
-    return nearestEnemy
+local R6_BONES = {
+	{"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+	{"Torso", "Left Leg"}, {"Torso", "Right Leg"},
+}
+
+local ESP_Folder = workspace:FindFirstChild("ESP_Storage") or Instance.new("Folder", workspace)
+ESP_Folder.Name = "ESP_Storage"
+
+----------------------------------------------------
+-- 1. TẠO GIAO DIỆN MENU MOBILE
+----------------------------------------------------
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_MobileMenu"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Nút tròn Đóng/Mở Menu (Dành riêng cho tay bấm Mobile)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleMenuBtn"
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0) -- Nằm góc trên bên trái
+toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Text = "ESP"
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 18
+toggleBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0) -- Làm tròn nút
+btnCorner.Parent = toggleBtn
+
+-- Khung Menu Chính
+local menuFrame = Instance.new("Frame")
+menuFrame.Name = "MainFrame"
+menuFrame.Size = UDim2.new(0, 180, 0, 190)
+menuFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+menuFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+menuFrame.BackgroundTransparency = 0.1
+menuFrame.Visible = false -- Ban đầu ẩn đi
+menuFrame.Parent = screenGui
+
+local menuCorner = Instance.new("UICorner")
+menuCorner.CornerRadius = UDim.new(0, 10)
+menuCorner.Parent = menuFrame
+
+-- Tiêu đề Menu
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 35)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "MOBILE ESP MENU"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 16
+titleLabel.Parent = menuFrame
+
+-- Hàm tạo Nút Bật/Tắt các tính năng
+local function createOptionButton(name, text, positionY, defaultState, callback)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0.85, 0, 0, 35)
+	btn.Position = UDim2.new(0.075, 0, 0, positionY)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.Parent = menuFrame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+
+	local function updateUI(state)
+		if state then
+			btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113) -- Xanh lá (ON)
+			btn.Text = text .. ": ON"
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		else
+			btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60) -- Đỏ (OFF)
+			btn.Text = text .. ": OFF"
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		end
+	end
+
+	updateUI(defaultState)
+
+	btn.MouseButton1Click:Connect(function()
+		local newState = not Settings[name]
+		Settings[name] = newState
+		updateUI(newState)
+		callback(newState)
+	end)
 end
 
--- Hàm thực thi bay/dịch chuyển lên đầu
-local function teleportToNearestEnemyHead()
-    local targetChar = getNearestEnemy()
-    local myChar = LocalPlayer.Character
+-- Đóng/mở khung Menu khi bấm nút ESP tròn
+toggleBtn.MouseButton1Click:Connect(function()
+	menuFrame.Visible = not menuFrame.Visible
+end)
 
-    if targetChar and myChar and myChar:FindFirstChild("HumanoidRootPart") then
-        local targetHead = targetChar:FindFirstChild("Head")
-        if targetHead then
-            -- Cập nhật CFrame lên trên đầu mục tiêu
-            myChar.HumanoidRootPart.CFrame = targetHead.CFrame + HEIGHT_OFFSET
-        end
-    end
+----------------------------------------------------
+-- 2. XỬ LÝ LOGIC ESP & CẬP NHẬT TRẠNG THÁI
+----------------------------------------------------
+local function createHealthUI(character)
+	local head = character:WaitForChild("Head", 5)
+	if not head or head:FindFirstChild("HealthUI") then return end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HealthUI"
+	billboard.Adornee = head
+	billboard.Size = UDim2.new(0, 100, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Enabled = Settings.Health
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+	textLabel.TextStrokeTransparency = 0
+	textLabel.Font = Enum.Font.SourceSansBold
+	textLabel.TextSize = 14
+	textLabel.Text = "HP: 100%"
+	textLabel.Parent = billboard
+
+	billboard.Parent = head
+	return textLabel
 end
 
--- Gọi hàm này khi cần (Ví dụ bind vào phím bấm hoặc vòng lặp RunService)
--- teleportToNearestEnemyHead()
-    Box.Visible = false
-    local Stroke = Instance.new("UIStroke", Box)
-    Stroke.Color = Settings.ESPColor
-    Stroke.Thickness = 1
-    return Box
+local function createSkeleton(character)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not humanoid then return end
+
+	local boneStructure = (humanoid.RigType == Enum.HumanoidRigType.R15) and R15_BONES or R6_BONES
+	local folder = Instance.new("Folder")
+	folder.Name = "Skeleton_" .. character.Name
+	folder.Parent = ESP_Folder
+
+	for _, pair in ipairs(boneStructure) do
+		local partA = character:FindFirstChild(pair[1])
+		local partB = character:FindFirstChild(pair[2])
+
+		if partA and partB then
+			local attA = Instance.new("Attachment", partA)
+			local attB = Instance.new("Attachment", partB)
+
+			local beam = Instance.new("Beam")
+			beam.Attachment0 = attA
+			beam.Attachment1 = attB
+			beam.Color = ColorSequence.new(CONFIG.SkeletonColor)
+			beam.Width0 = CONFIG.SkeletonThickness
+			beam.Width1 = CONFIG.SkeletonThickness
+			beam.AlwaysOnTop = true
+			beam.FaceCamera = true
+			beam.Enabled = Settings.Skeleton
+			beam.Parent = folder
+		end
+	end
 end
 
--- Vòng lặp chính
-RunService.RenderStepped:Connect(function()
-    -- Speed
-    pcall(function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = 16 * Settings.WalkSpeedBoost
-        end
-    end)
+local function createHighlight(character)
+	if character:FindFirstChild("ESPHighlight") then return end
 
-    local Target = nil
-    local MaxDist = math.huge
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ESPHighlight"
+	highlight.Adornee = character
+	highlight.FillColor = CONFIG.HighlightColor
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.Enabled = Settings.ESP
+	highlight.Parent = character
+end
 
-    for _, p in pairs(Players:GetPlayers()) do
-        local Box = ESPFolder:FindFirstChild(p.Name) or CreateBox(p)
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local isEnemy = not Settings.TeamCheck or (p.Team ~= LocalPlayer.Team)
-            local head = p.Character:FindFirstChild("Head")
-            
-            if isEnemy and head then
-                local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                local canSee = onScreen and isVisible(head)
+local function setupPlayerESP(player)
+	if player == LocalPlayer then return end
 
-                if canSee then
-                    local size = 2000 / headPos.Z
-                    Box.Size = UDim2.new(0, size * 0.7, 0, size)
-                    Box.Position = UDim2.new(0, headPos.X - (size * 0.35), 0, headPos.Y - (size * 0.5))
-                    Box.Visible = true
-                    
-                    local dist = (LocalPlayer.Character.HumanoidRootPart.Position - head.Position).Magnitude
-                    if dist < MaxDist then
-                        MaxDist = dist
-                        Target = head
-                    end
-                else
-                    Box.Visible = false
-                end
-            else
-                Box.Visible = false
-            end
-        elseif Box then
-            Box.Visible = false
-        end
-    end
+	local function onCharacterAdded(character)
+		task.wait(0.5)
+		local humanoid = character:WaitForChild("Humanoid", 5)
+		if not humanoid then return end
 
-    if Target then
-        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, Target.Position), Settings.AimSpeed)
-    end
+		createHighlight(character)
+		createSkeleton(character)
+		local healthText = createHealthUI(character)
+
+		if healthText then
+			local function updateHealth()
+				local percent = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
+				healthText.Text = string.format("%s | %d%%", player.DisplayName, math.max(0, percent))
+				
+				if percent > 50 then
+					healthText.TextColor3 = Color3.fromRGB(0, 255, 0)
+				elseif percent > 20 then
+					healthText.TextColor3 = Color3.fromRGB(255, 165, 0)
+				else
+					healthText.TextColor3 = Color3.fromRGB(255, 0, 0)
+				end
+			end
+
+			humanoid.HealthChanged:Connect(updateHealth)
+			updateHealth()
+		end
+	end
+
+	if player.Character then onCharacterAdded(player.Character) end
+	player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+----------------------------------------------------
+-- 3. ĐIỀU KHIỂN BẬT/TẮT TỪ MENU
+----------------------------------------------------
+createOptionButton("ESP", "Highlight ESP", 40, Settings.ESP, function(state)
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character and plr.Character:FindFirstChild("ESPHighlight") then
+			plr.Character.ESPHighlight.Enabled = state
+		end
+	end
+end)
+
+createOptionButton("Skeleton", "Khung Xương", 85, Settings.Skeleton, function(state)
+	for _, folder in ipairs(ESP_Folder:GetChildren()) do
+		for _, beam in ipairs(folder:GetChildren()) do
+			if beam:IsA("Beam") then
+				beam.Enabled = state
+			end
+		end
+	end
+end)
+
+createOptionButton("Health", "Hiện % Máu", 130, Settings.Health, function(state)
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character and plr.Character:FindFirstChild("Head") then
+			local ui = plr.Character.Head:FindFirstChild("HealthUI")
+			if ui then
+				ui.Enabled = state
+			end
+		end
+	end
+end)
+
+-- Khởi chạy cho người chơi
+for _, player in ipairs(Players:GetPlayers()) do setupPlayerESP(player) end
+Players.PlayerAdded:Connect(setupPlayerESP)
+Players.PlayerRemoving:Connect(function(player)
+	local skelFolder = ESP_Folder:FindFirstChild("Skeleton_" .. player.Name)
+	if skelFolder then skelFolder:Destroy() end
 end)

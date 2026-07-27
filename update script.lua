@@ -1,39 +1,194 @@
--- MOBILE ESP MENU (FIX DÀNH RIÊNG CHO DELTA X / MOBILE EXECUTORS)
+-- DELTA X ULTIMATE ESP (WORLD 3D METHOD)
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Trạng thái bật/tắt
+-- Cấu hình trạng thái
 local Settings = {
-	ESP = true,
-	Box = true,
-	Health = true,
-	Skeleton = true,
+	ESP = true,       -- Xuyên tường (Highlight/Box 3D)
+	Health = true,    -- Tên + % Máu
 }
 
 ----------------------------------------------------
--- 1. TẠO GIAO DIỆN MENU MOBILE
+-- 1. GIAO DIỆN MENU (DÙNG ĐỐI TƯỢNG GỐC PLAYERGUI)
 ----------------------------------------------------
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Xóa UI cũ nếu có
-if playerGui:FindFirstChild("ESP_Mobile_Fix") then
-	playerGui.ESP_Mobile_Fix:Destroy()
+if playerGui:FindFirstChild("Delta_ESP_UI") then
+	playerGui.Delta_ESP_UI:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ESP_Mobile_Fix"
+screenGui.Name = "Delta_ESP_UI"
 screenGui.ResetOnSpawn = false
-screenGui.DisplayOrder = 9999
+screenGui.DisplayOrder = 999999
 screenGui.Parent = playerGui
 
--- Nút tròn Bật/Tắt Menu
+-- Nút Bật/Tắt Menu tròn
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Name = "ToggleBtn"
-toggleBtn.Size = UDim2.new(0, 50, 0, 50)
-toggleBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleBtn.Name = "Toggle"
+toggleBtn.Size = UDim2.new(0, 55, 0, 55)
+toggleBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Text = "ESP"
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 18
+toggleBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleBtn
+
+-- Bảng Menu
+local menuFrame = Instance.new("Frame")
+menuFrame.Name = "Menu"
+menuFrame.Size = UDim2.new(0, 180, 0, 160)
+menuFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
+menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+menuFrame.BackgroundTransparency = 0.1
+menuFrame.Visible = false
+menuFrame.Parent = screenGui
+
+local menuCorner = Instance.new("UICorner")
+menuCorner.CornerRadius = UDim.new(0, 10)
+menuCorner.Parent = menuFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "DELTA ESP MENU"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 15
+title.Parent = menuFrame
+
+local function createToggle(name, text, posY, defaultState, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.85, 0, 0, 35)
+	btn.Position = UDim2.new(0.075, 0, 0, posY)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.Parent = menuFrame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+
+	local function update()
+		if Settings[name] then
+			btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+			btn.Text = text .. ": ON"
+		else
+			btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+			btn.Text = text .. ": OFF"
+		end
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	end
+
+	update()
+
+	btn.MouseButton1Click:Connect(function()
+		Settings[name] = not Settings[name]
+		update()
+		callback(Settings[name])
+	end)
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+	menuFrame.Visible = not menuFrame.Visible
+end)
+
+----------------------------------------------------
+-- 2. TẠO BOX3D VÀ BILLBOARD UI XUYÊN TƯỜNG GỐC
+----------------------------------------------------
+local function applyESP(player)
+	if player == LocalPlayer then return end
+
+	local function characterAdded(char)
+		-- Chờ Nhân vật load xong HumanoidRootPart
+		local hrp = char:WaitForChild("HumanoidRootPart", 10)
+		local humanoid = char:WaitForChild("Humanoid", 10)
+		if not hrp or not humanoid then return end
+
+		-- 1. Tạo Box 3D bao quanh người
+		local box = hrp:FindFirstChild("ESP_Box3D") or Instance.new("BoxHandleAdornment")
+		box.Name = "ESP_Box3D"
+		box.Adornee = hrp
+		box.Size = Vector3.new(4, 6, 4) -- Kích thước khung 3D bao quanh nhân vật
+		box.Color3 = Color3.fromRGB(255, 0, 0)
+		box.Transparency = 0.4
+		box.AlwaysOnTop = true -- Bắt buộc xuyên tường
+		box.ZIndex = 10
+		box.Visible = Settings.ESP
+		box.Parent = hrp
+
+		-- 2. Tạo Billboard Gui hiển thị Máu & Tên
+		local billboard = hrp:FindFirstChild("ESP_HealthUI") or Instance.new("BillboardGui")
+		billboard.Name = "ESP_HealthUI"
+		billboard.Adornee = hrp
+		billboard.Size = UDim2.new(0, 200, 0, 50)
+		billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+		billboard.AlwaysOnTop = true -- Bắt buộc xuyên tường
+		billboard.Enabled = Settings.Health
+
+		local label = billboard:FindFirstChild("TextLabel") or Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.fromRGB(0, 255, 0)
+		label.TextStrokeTransparency = 0
+		label.Font = Enum.Font.SourceSansBold
+		label.TextSize = 14
+		label.Parent = billboard
+		billboard.Parent = hrp
+
+		-- Cập nhật thông số Máu liên tục
+		local function updateHP()
+			if humanoid and humanoid.Health > 0 then
+				local hp = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
+				label.Text = string.format("%s\n[%d%% HP]", player.DisplayName, math.max(0, hp))
+			else
+				label.Text = player.DisplayName .. "\n[DEAD]"
+			end
+		end
+
+		humanoid.HealthChanged:Connect(updateHP)
+		updateHP()
+	end
+
+	if player.Character then
+		task.spawn(characterAdded, player.Character)
+	end
+	player.CharacterAdded:Connect(characterAdded)
+end
+
+----------------------------------------------------
+-- 3. ĐIỀU KHIỂN & KÍCH HOẠT
+----------------------------------------------------
+createToggle("ESP", "Khung Box 3D", 40, Settings.ESP, function(state)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			local box = p.Character.HumanoidRootPart:FindFirstChild("ESP_Box3D")
+			if box then box.Visible = state end
+		end
+	end
+end)
+
+createToggle("Health", "Tên & % Máu", 90, Settings.Health, function(state)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			local ui = p.Character.HumanoidRootPart:FindFirstChild("ESP_HealthUI")
+			if ui then ui.Enabled = state end
+		end
+	end
+end)
+
+-- Quét toàn bộ Player hiện có & Player mới vào
+for _, player in ipairs(Players:GetPlayers()) do
+	applyESP(player)
+end
+
+Players.PlayerAdded:Connect(applyESP)
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Text = "ESP"
 toggleBtn.Font = Enum.Font.SourceSansBold

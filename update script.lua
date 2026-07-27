@@ -1,44 +1,62 @@
--- MOBILE ESP MENU - FIX TRIỆT ĐỂ UI TRỒNG NHAU & KÉO THẢ MENU
+-- DELTA X SINGLE-INSTANCE ESP (FIX TRÙNG MENU 100%)
+
+-- 1. TẮT & HỦY TOÀN BỘ SCRIPT CŨ ĐANG CHẠY NGẦM
+if _G.DeltaESP_Cleanup then
+	pcall(_G.DeltaESP_Cleanup)
+end
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- Cấu hình trạng thái
+-- Khởi tạo biến quản lý luồng
+local ScriptConnections = {}
+_G.DeltaESP_Cleanup = function()
+	for _, conn in ipairs(ScriptConnections) do
+		if conn and conn.Disconnect then
+			pcall(function() conn:Disconnect() end)
+		end
+	end
+	ScriptConnections = {}
+end
+
 local Settings = {
-	ESP = true,       -- Khung Box 3D
-	Health = true,    -- Tên + % Máu
+	ESP = true,
+	Health = true,
 }
 
 ----------------------------------------------------
--- 1. DỌN SẠCH TẤT CẢ UI CŨ (TẬN GỐC COREGUI & GETHUI)
+-- 2. DỌN SẠCH UI CŨ
 ----------------------------------------------------
-local function cleanOldUI(parent)
-	if not parent then return end
-	for _, child in ipairs(parent:GetChildren()) do
-		if child.Name == "Delta_ESP_UI" or child.Name == "ESP_MobileMenu" or child.Name == "ESP_Mobile_Fix" then
+local function wipeOldUI(folder)
+	if not folder then return end
+	for _, child in ipairs(folder:GetChildren()) do
+		if child.Name:find("Delta_ESP") or child.Name:find("ESP_Mobile") then
 			child:Destroy()
 		end
 	end
 end
 
-cleanOldUI(LocalPlayer:FindFirstChild("PlayerGui"))
-cleanOldUI(CoreGui)
-if gethui then cleanOldUI(gethui()) end
+wipeOldUI(LocalPlayer:FindFirstChild("PlayerGui"))
+wipeOldUI(CoreGui)
+if gethui then wipeOldUI(gethui()) end
 
--- Lựa chọn Nơi chứa UI tốt nhất cho Executor
-local targetParent = LocalPlayer:WaitForChild("PlayerGui")
+local parentContainer = LocalPlayer:WaitForChild("PlayerGui")
 if gethui then
-	targetParent = gethui()
+	parentContainer = gethui()
 elseif CoreGui:FindFirstChild("RobloxGui") then
-	targetParent = CoreGui
+	parentContainer = CoreGui
 end
 
+----------------------------------------------------
+-- 3. TẠO GIAO DIỆN MỚI
+----------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Delta_ESP_UI"
+screenGui.Name = "Delta_ESP_UI_" .. math.random(1000, 9999) -- Tên ngẫu nhiên tránh cache
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
-screenGui.Parent = targetParent
+screenGui.Parent = parentContainer
 
 -- Nút Bật/Tắt Menu tròn
 local toggleBtn = Instance.new("TextButton")
@@ -56,11 +74,11 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(1, 0)
 btnCorner.Parent = toggleBtn
 
--- Bảng Menu (Đã đẩy ra xa lề trái)
+-- Bảng Menu (Kéo thả thoải mái)
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
 menuFrame.Size = UDim2.new(0, 190, 0, 150)
-menuFrame.Position = UDim2.new(0.18, 0, 0.3, 0) -- Vị trí thoáng mát hơn
+menuFrame.Position = UDim2.new(0.3, 0, 0.3, 0) -- Đưa hẳn ra gần giữa
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
 menuFrame.Visible = false
@@ -71,11 +89,9 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
-----------------------------------------------------
--- CHỨC NĂNG KÉO THẢ MENU CHO MOBILE (DRAGGABLE)
-----------------------------------------------------
+-- Logic Kéo thả Menu
 local dragging, dragInput, dragStart, startPos
-menuFrame.InputBegan:Connect(function(input)
+table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
 		dragStart = input.Position
@@ -86,23 +102,23 @@ menuFrame.InputBegan:Connect(function(input)
 			end
 		end)
 	end
-end)
+end))
 
-menuFrame.InputChanged:Connect(function(input)
+table.insert(ScriptConnections, menuFrame.InputChanged:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 		dragInput = input
 	end
-end)
+end))
 
-UserInputService.InputChanged:Connect(function(input)
+table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
 	if input == dragInput and dragging then
 		local delta = input.Position - dragStart
 		menuFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
-end)
+end))
 
 ----------------------------------------------------
--- 2. TẠO CÁC NÚT BẤM VÀ KHUNG TỰ ĐỘNG CĂN
+-- 4. CONTAINER & NÚT BẤM
 ----------------------------------------------------
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 35)
@@ -124,7 +140,7 @@ listLayout.Padding = UDim.new(0, 8)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = container
 
-local function createToggle(name, text, defaultState, callback)
+local function createToggle(name, text, callback)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 0, 38)
 	btn.Font = Enum.Font.SourceSansBold
@@ -148,19 +164,19 @@ local function createToggle(name, text, defaultState, callback)
 
 	update()
 
-	btn.MouseButton1Click:Connect(function()
+	table.insert(ScriptConnections, btn.MouseButton1Click:Connect(function()
 		Settings[name] = not Settings[name]
 		update()
 		callback(Settings[name])
-	end)
+	end))
 end
 
-toggleBtn.MouseButton1Click:Connect(function()
+table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 	menuFrame.Visible = not menuFrame.Visible
-end)
+end))
 
 ----------------------------------------------------
--- 3. LOGIC ESP 3D & HEALTH UI
+-- 5. ESP LOGIC (WORLD 3D)
 ----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
@@ -210,20 +226,20 @@ local function applyESP(player)
 			end
 		end
 
-		humanoid.HealthChanged:Connect(updateHP)
+		table.insert(ScriptConnections, humanoid.HealthChanged:Connect(updateHP))
 		updateHP()
 	end
 
 	if player.Character then
 		task.spawn(characterAdded, player.Character)
 	end
-	player.CharacterAdded:Connect(characterAdded)
+	table.insert(ScriptConnections, player.CharacterAdded:Connect(characterAdded))
 end
 
 ----------------------------------------------------
--- 4. KÍCH HOẠT
+-- 6. KHỞI TẠO NÚT BẤM & QUÉT PLAYER
 ----------------------------------------------------
-createToggle("ESP", "Nhìn Xuyên Tường", Settings.ESP, function(state)
+createToggle("ESP", "Nhìn Xuyên Tường", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 			local box = p.Character.HumanoidRootPart:FindFirstChild("ESP_Box3D")
@@ -232,7 +248,7 @@ createToggle("ESP", "Nhìn Xuyên Tường", Settings.ESP, function(state)
 	end
 end)
 
-createToggle("Health", "Hiện Tên & % Máu", Settings.Health, function(state)
+createToggle("Health", "Hiện Tên & % Máu", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 			local ui = p.Character.HumanoidRootPart:FindFirstChild("ESP_HealthUI")
@@ -245,4 +261,4 @@ for _, player in ipairs(Players:GetPlayers()) do
 	applyESP(player)
 end
 
-Players.PlayerAdded:Connect(applyESP)
+table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))

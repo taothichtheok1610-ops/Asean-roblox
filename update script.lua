@@ -1,4 +1,4 @@
--- DELTA X: TOP-SCREEN LINE ESP + AIMBOT FOV SMOOTH
+-- DELTA X FIX: TOP LINE (HEAD TARGET) + SKELETON ESP + AIMBOT FOV
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -22,6 +22,7 @@ local Settings = {
 	ESP = true,
 	Health = true,
 	Lines = true,
+	Skeleton = true,
 	Aimbot = true,
 	WallCheck = true,
 	FOVSize = 120,
@@ -98,8 +99,8 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 220, 0, 310)
-menuFrame.Position = UDim2.new(0.25, 0, 0.15, 0)
+menuFrame.Size = UDim2.new(0, 220, 0, 340)
+menuFrame.Position = UDim2.new(0.25, 0, 0.12, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
 menuFrame.Visible = false
@@ -133,7 +134,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP TOP LINE"
+title.Text = "DELTA ESP & AIMBOT FIX"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 14
@@ -146,13 +147,13 @@ container.BackgroundTransparency = 1
 container.Parent = menuFrame
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 5)
+listLayout.Padding = UDim.new(0, 4)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = container
 
 local function createToggle(name, text, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 28)
+	btn.Size = UDim2.new(1, 0, 0, 26)
 	btn.Font = Enum.Font.SourceSansBold
 	btn.TextSize = 11
 	btn.Parent = container
@@ -182,7 +183,7 @@ end
 
 -- Tăng/Giảm FOV
 local fovControl = Instance.new("Frame")
-fovControl.Size = UDim2.new(1, 0, 0, 28)
+fovControl.Size = UDim2.new(1, 0, 0, 26)
 fovControl.BackgroundTransparency = 1
 fovControl.Parent = container
 
@@ -215,7 +216,7 @@ end)
 
 -- Chỉnh Độ Mượt Aim
 local smoothBtn = Instance.new("TextButton")
-smoothBtn.Size = UDim2.new(1, 0, 0, 28)
+smoothBtn.Size = UDim2.new(1, 0, 0, 26)
 smoothBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 200)
 smoothBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 smoothBtn.Font = Enum.Font.SourceSansBold
@@ -245,14 +246,14 @@ table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 end))
 
 ----------------------------------------------------
--- 4. HÀM TÍNH TOÁN VẼ TIA TỪ ĐỈNH MÀN HÌNH
+-- 4. HÀM TÍNH TOÁN VẼ TIA CHUẨN ĐẦU
 ----------------------------------------------------
 local function drawLineFromTop(lineFrame, targetScreenPos)
-	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0) -- Điểm giữa trên đỉnh màn hình
+	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0)
 	local distance = (targetScreenPos - topScreenPos).Magnitude
 	local angle = math.deg(math.atan2(targetScreenPos.Y - topScreenPos.Y, targetScreenPos.X - topScreenPos.X))
 
-	lineFrame.Size = UDim2.new(0, distance, 0, 2) -- Độ dày tia = 2px
+	lineFrame.Size = UDim2.new(0, distance, 0, 2)
 	lineFrame.Position = UDim2.new(0, (topScreenPos.X + targetScreenPos.X) / 2, 0, (topScreenPos.Y + targetScreenPos.Y) / 2)
 	lineFrame.Rotation = angle
 	lineFrame.Visible = true
@@ -301,7 +302,7 @@ local function getClosestPlayerInFOV()
 end
 
 ----------------------------------------------------
--- 6. RENDER LOOP (XỬ LÝ TIA LINE TỪ ĐỈNH & AIMBOT)
+-- 6. RENDER LOOP
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -315,32 +316,32 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 		end
 	end
 
-	-- Ẩn tất cả tia Line cũ
+	-- Reset các Frame Tia Line
 	for _, child in ipairs(linesFolder:GetChildren()) do
 		child.Visible = false
 	end
 
-	-- Vẽ tia Line từ ĐỈNH màn hình xuống kẻ địch
+	-- Vẽ tia Line từ ĐỈNH ghim thẳng vào ĐẦU (Head)
 	if Settings.Lines then
 		for _, player in ipairs(Players:GetPlayers()) do
 			if player ~= LocalPlayer and player.Character then
-				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+				local head = player.Character:FindFirstChild("Head")
 				local humanoid = player.Character:FindFirstChild("Humanoid")
 
-				if hrp and humanoid and humanoid.Health > 0 then
-					local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+				if head and humanoid and humanoid.Health > 0 then
+					local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
 					if onScreen then
 						local line = linesFolder:FindFirstChild("TopLine_" .. player.Name)
 						if not line then
 							line = Instance.new("Frame")
 							line.Name = "TopLine_" .. player.Name
 							line.AnchorPoint = Vector2.new(0.5, 0.5)
-							line.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Màu vàng nổi bật
+							line.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
 							line.BorderSizePixel = 0
 							line.Parent = linesFolder
 						end
 
-						drawLineFromTop(line, Vector2.new(hrpPos.X, hrpPos.Y))
+						drawLineFromTop(line, Vector2.new(headPos.X, headPos.Y))
 					end
 				end
 			end
@@ -349,7 +350,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 end))
 
 ----------------------------------------------------
--- 7. KHỞI TẠO MENU & ESP BOX
+-- 7. KHỞI TẠO MENU & ESP SKELETON
 ----------------------------------------------------
 createToggle("ESP", "Nhìn Xuyên Tường (Box)", function(state)
 	for _, p in ipairs(Players:GetPlayers()) do
@@ -369,7 +370,17 @@ createToggle("Health", "Hiện Tên & % Máu", function(state)
 	end
 end)
 
-createToggle("Lines", "Line Đỉnh Màn Hình", function(state) end)
+createToggle("Lines", "Line Đỉnh Nối Đầu", function(state) end)
+
+createToggle("Skeleton", "Hiện Xương (Skeleton)", function(state)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character then
+			local hl = p.Character:FindFirstChild("ESP_Skeleton")
+			if hl then hl.Enabled = state end
+		end
+	end
+end)
+
 createToggle("Aimbot", "Bật Aimbot FOV", function(state) end)
 createToggle("WallCheck", "Wall Check (Chống tường)", function(state) end)
 
@@ -381,6 +392,7 @@ local function applyESP(player)
 		local humanoid = char:WaitForChild("Humanoid", 10)
 		if not hrp or not humanoid then return end
 
+		-- Box ESP
 		local box = hrp:FindFirstChild("ESP_Box3D") or Instance.new("BoxHandleAdornment")
 		box.Name = "ESP_Box3D"
 		box.Adornee = hrp
@@ -392,6 +404,7 @@ local function applyESP(player)
 		box.Visible = Settings.ESP
 		box.Parent = hrp
 
+		-- Health UI
 		local billboard = hrp:FindFirstChild("ESP_HealthUI") or Instance.new("BillboardGui")
 		billboard.Name = "ESP_HealthUI"
 		billboard.Adornee = hrp
@@ -421,6 +434,16 @@ local function applyESP(player)
 
 		table.insert(ScriptConnections, humanoid.HealthChanged:Connect(updateHP))
 		updateHP()
+
+		-- Skeleton Highlight (Khung Xương Nhân Vật)
+		local highlight = char:FindFirstChild("ESP_Skeleton") or Instance.new("Highlight")
+		highlight.Name = "ESP_Skeleton"
+		highlight.Adornee = char
+		highlight.FillTransparency = 1
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.OutlineTransparency = 0.1
+		highlight.Enabled = Settings.Skeleton
+		highlight.Parent = char
 	end
 
 	if player.Character then task.spawn(characterAdded, player.Character) end

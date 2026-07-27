@@ -1,39 +1,64 @@
--- [[ MOBILE FIX - ALL IN ONE ]] --
-local Settings = {
-    WalkSpeedBoost = 1.10,
-    AimSpeed = 0.65,
-    TeamCheck = true,
-    WallCheck = true,
-    ESPColor = Color3.fromRGB(160, 32, 240)
-}
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local ESPFolder = Instance.new("Folder")
-ESPFolder.Name = "MobileESP"
-pcall(function()
-    ESPFolder.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end)
 
-local function isVisible(targetPart)
-    if not Settings.WallCheck then return true end
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("Head") then return false end
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {char, targetPart.Parent, ESPFolder}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(char.Head.Position, (targetPart.Position - char.Head.Position).Unit * 1000, params)
-    return result == nil 
+local LocalPlayer = Players.LocalPlayer
+local HEIGHT_OFFSET = Vector3.new(0, 3.5, 0) -- Độ cao đứng trên đầu đối phương
+
+-- Hàm tìm kẻ địch gần nhất (loại trừ đồng đội)
+local function getNearestEnemy()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    
+    local myPos = character.HumanoidRootPart.Position
+    local nearestEnemy = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        -- Lọc bỏ bản thân
+        if player ~= LocalPlayer then
+            -- Kiểm tra khác team (Nếu game không phân team thì bỏ điều kiện Team)
+            local isEnemy = true
+            if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
+                isEnemy = false
+            end
+
+            if isEnemy then
+                local enemyChar = player.Character
+                if enemyChar and enemyChar:FindFirstChild("Head") and enemyChar:FindFirstChildOfClass("Humanoid") then
+                    local humanoid = enemyChar:FindFirstChildOfClass("Humanoid")
+                    
+                    -- Chỉ chọn người còn sống
+                    if humanoid.Health > 0 then
+                        local distance = (enemyChar.Head.Position - myPos).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            nearestEnemy = enemyChar
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nearestEnemy
 end
 
-local function CreateBox(player)
-    local Box = Instance.new("Frame", ESPFolder)
-    Box.Name = player.Name
-    Box.BackgroundColor3 = Settings.ESPColor
-    Box.BackgroundTransparency = 0.6
-    Box.BorderSizePixel = 0
+-- Hàm thực thi bay/dịch chuyển lên đầu
+local function teleportToNearestEnemyHead()
+    local targetChar = getNearestEnemy()
+    local myChar = LocalPlayer.Character
+
+    if targetChar and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+        local targetHead = targetChar:FindFirstChild("Head")
+        if targetHead then
+            -- Cập nhật CFrame lên trên đầu mục tiêu
+            myChar.HumanoidRootPart.CFrame = targetHead.CFrame + HEIGHT_OFFSET
+        end
+    end
+end
+
+-- Gọi hàm này khi cần (Ví dụ bind vào phím bấm hoặc vòng lặp RunService)
+-- teleportToNearestEnemyHead()
     Box.Visible = false
     local Stroke = Instance.new("UIStroke", Box)
     Stroke.Color = Settings.ESPColor

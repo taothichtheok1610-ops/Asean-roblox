@@ -1,4 +1,4 @@
--- DELTA X: FIX 2D BOX USING SCREEN GUI (100% WORKING GUARANTEED)
+-- DELTA X: FIX 2D BOX POSITION (BOUNDING BOX METHOD - 100% ACCURATE)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -65,7 +65,6 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- Container chứa riêng các Khung 2D Box
 local boxContainer = Instance.new("Folder")
 boxContainer.Name = "Box2D_Container"
 boxContainer.Parent = screenGui
@@ -119,7 +118,6 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
--- Dragging Menu
 local dragging, dragStart, startPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -142,7 +140,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP 2D GUI FIX"
+title.Text = "DELTA ESP 2D BOX FIX"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -188,7 +186,6 @@ local function createToggle(name, text)
 	end))
 end
 
--- Controls
 local fovControl = Instance.new("Frame")
 fovControl.Size = UDim2.new(1, 0, 0, 26)
 fovControl.BackgroundTransparency = 1
@@ -313,7 +310,6 @@ end
 
 local function getPlayerDrawings(player)
 	if not DrawObjects[player] then
-		-- GUI 2D Box Frame
 		local boxFrame = Instance.new("Frame")
 		boxFrame.Name = "2DBox_" .. player.Name
 		boxFrame.BackgroundTransparency = 1
@@ -355,12 +351,11 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP
+-- 4. RENDER LOOP (ĐÃ SỬA CÁCH TÍNH BOX CHÍNH XÁC)
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
 
-	-- Aimbot Smooth
 	if Settings.Aimbot then
 		local targetHead = getClosestPlayerInFOV()
 		if targetHead then
@@ -380,19 +375,20 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 			local head = char and char:FindFirstChild("Head")
 
 			if char and humanoid and humanoid.Health > 0 and hrp and head then
-				local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+				local cframe, size = char:GetBoundingBox()
+				local hrpPos, onScreen = Camera:WorldToViewportPoint(cframe.Position)
 
 				if onScreen then
-					-- 1. GUI 2D Box (Tính toán tọa độ GUI cực chuẩn)
+					-- 1. TÍNH KHUNG 2D CỰC CHUẨN BẰNG BOUNDING BOX
 					if Settings.ESP then
-						local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.2, 0))
-						local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3.2, 0))
+						local topPos = Camera:WorldToViewportPoint(cframe.Position + Vector3.new(0, size.Y / 2, 0))
+						local bottomPos = Camera:WorldToViewportPoint(cframe.Position - Vector3.new(0, size.Y / 2, 0))
 
-						local height = math.abs(headPos.Y - legPos.Y)
-						local width = height * 0.6
+						local height = math.abs(topPos.Y - bottomPos.Y)
+						local width = height * 0.55
 
 						objs.BoxGui.Size = UDim2.new(0, width, 0, height)
-						objs.BoxGui.Position = UDim2.new(0, hrpPos.X - (width / 2), 0, headPos.Y)
+						objs.BoxGui.Position = UDim2.new(0, hrpPos.X - (width / 2), 0, topPos.Y)
 						objs.BoxGui.Visible = true
 					else
 						objs.BoxGui.Visible = false

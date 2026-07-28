@@ -1,5 +1,5 @@
--- DELTA X: BLUE LOCK CONTROLL BALL & TELEPORT BALL PROJECT
--- Version: Advanced Physics Control
+-- DELTA X: BLUE LOCK CONTROLL BALL & AUTO PICK BALL
+-- Version: Instant Touch & Auto Collect
 
 if _G.BlueLock_Cleanup then pcall(_G.BlueLock_Cleanup) end
 
@@ -29,8 +29,8 @@ end
 -- CẤU HÌNH TÍNH NĂNG
 local Config = {
 	ControlBall = false,
-	BallSpeed = 100, -- Tốc độ bay của bóng
-	TeleportKey = Enum.KeyCode.E,
+	AutoPickBall = false, -- Tự động hút/nhặt bóng
+	BallSpeed = 100,
 }
 
 ----------------------------------------------------
@@ -41,7 +41,6 @@ local function GetBall()
 		return CurrentBall
 	end
 	
-	-- Tìm các Object tên "Football", "SoccerBall", "Ball" trong Workspace
 	for _, obj in ipairs(Workspace:GetDescendants()) do
 		if obj:IsA("BasePart") and (obj.Name == "Ball" or obj.Name == "Football" or obj.Name == "SoccerBall" or obj.Name:find("Ball")) then
 			if not obj:IsDescendantOf(LocalPlayer.Character) then
@@ -54,7 +53,19 @@ local function GetBall()
 end
 
 ----------------------------------------------------
--- 2. ĐIỀU KHIỂN BÓNG BẰNG CAMERA (CONTROL BALL LOGIC)
+-- 2. DỊCH CHUYỂN & AUTO NHẶT BÓNG (INSTANT PICK)
+----------------------------------------------------
+local function TeleportToBall()
+	local ball = GetBall()
+	local char = LocalPlayer.Character
+	if ball and char and char:FindFirstChild("HumanoidRootPart") then
+		-- Dịch chuyển đè thẳng vào tọa độ quả bóng để nhặt ngay lập tức
+		char.HumanoidRootPart.CFrame = ball.CFrame
+	end
+end
+
+----------------------------------------------------
+-- 3. LOOP XỬ LÝ CONTROL BALL & AUTO PICK
 ----------------------------------------------------
 local function StopBallControl()
 	ControllingBall = false
@@ -64,51 +75,40 @@ local function StopBallControl()
 end
 
 table.insert(Connections, RunService.RenderStepped:Connect(function()
-	if not Config.ControlBall then 
-		if ControllingBall then StopBallControl() end
-		return 
-	end
-
 	local ball = GetBall()
-	if not ball then return end
-
-	-- Kiểm tra nếu người chơi chạm hoặc ở gần bóng/đá bóng
 	local char = LocalPlayer.Character
-	if char and char:FindFirstChild("HumanoidRootPart") then
-		local dist = (char.HumanoidRootPart.Position - ball.Position).Magnitude
-		
-		-- Nếu bóng đang di chuyển nhanh hoặc người chơi ở gần
-		if dist < 12 or ball.AssemblyLinearVelocity.Magnitude > 5 then
-			ControllingBall = true
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+	-- Logic Auto Pick Ball: Liên tục hút lấy bóng nếu ở xa
+	if Config.AutoPickBall and ball and hrp then
+		local dist = (hrp.Position - ball.Position).Magnitude
+		if dist > 3 then
+			hrp.CFrame = ball.CFrame
 		end
 	end
 
-	if ControllingBall then
-		-- Chuyển góc nhìn Camera sang quả bóng
-		Camera.CameraSubject = ball
-
-		-- Điều hướng vận tốc quả bóng theo góc nhìn Camera (LookVector)
-		local lookDirection = Camera.CFrame.LookVector
-		ball.AssemblyLinearVelocity = lookDirection * Config.BallSpeed
-
-		-- Tắt điều khiển nếu bóng dừng hẳn
-		if ball.AssemblyLinearVelocity.Magnitude < 2 and (char and (char.HumanoidRootPart.Position - ball.Position).Magnitude > 20) then
-			StopBallControl()
+	-- Logic Control Ball
+	if Config.ControlBall and ball then
+		if hrp then
+			local dist = (hrp.Position - ball.Position).Magnitude
+			if dist < 12 or ball.AssemblyLinearVelocity.Magnitude > 5 then
+				ControllingBall = true
+			end
 		end
+
+		if ControllingBall then
+			Camera.CameraSubject = ball
+			local lookDirection = Camera.CFrame.LookVector
+			ball.AssemblyLinearVelocity = lookDirection * Config.BallSpeed
+
+			if ball.AssemblyLinearVelocity.Magnitude < 2 and (hrp and (hrp.Position - ball.Position).Magnitude > 20) then
+				StopBallControl()
+			end
+		end
+	else
+		if ControllingBall then StopBallControl() end
 	end
 end))
-
-----------------------------------------------------
--- 3. DỊCH CHUYỂN ĐẾN BÓNG (TELEPORT BALL)
-----------------------------------------------------
-local function TeleportToBall()
-	local ball = GetBall()
-	local char = LocalPlayer.Character
-	if ball and char and char:FindFirstChild("HumanoidRootPart") then
-		-- Dịch chuyển nhân vật đến phía sau quả bóng 3 studs
-		char.HumanoidRootPart.CFrame = ball.CFrame * CFrame.new(0, 3, 2)
-	end
-end
 
 ----------------------------------------------------
 -- 4. GIAO DIỆN MENU (GUI)
@@ -133,10 +133,10 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- Frame Menu Chinh
+-- Main Frame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainMenu"
-mainFrame.Size = UDim2.new(0, 230, 0, 260)
+mainFrame.Size = UDim2.new(0, 230, 0, 300)
 mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
 mainFrame.Active = true
@@ -155,7 +155,7 @@ stroke.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 35)
 title.BackgroundTransparency = 1
-title.Text = "BLUE LOCK: BALL CONTROL"
+title.Text = "BLUE LOCK: BALL SYSTEM"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 14
@@ -183,9 +183,9 @@ btnControl.Font = Enum.Font.SourceSansBold
 btnControl.TextSize = 12
 btnControl.Parent = container
 
-local btnControlCorner = Instance.new("UICorner")
-btnControlCorner.CornerRadius = UDim.new(0, 6)
-btnControlCorner.Parent = btnControl
+local corner1 = Instance.new("UICorner")
+corner1.CornerRadius = UDim.new(0, 6)
+corner1.Parent = btnControl
 
 table.insert(Connections, btnControl.MouseButton1Click:Connect(function()
 	Config.ControlBall = not Config.ControlBall
@@ -199,19 +199,44 @@ table.insert(Connections, btnControl.MouseButton1Click:Connect(function()
 	end
 end))
 
--- Teleport Ball Button
+-- Toggle Auto Pick Ball
+local btnAutoPick = Instance.new("TextButton")
+btnAutoPick.Size = UDim2.new(1, 0, 0, 32)
+btnAutoPick.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+btnAutoPick.Text = "Auto Pick Ball: OFF"
+btnAutoPick.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnAutoPick.Font = Enum.Font.SourceSansBold
+btnAutoPick.TextSize = 12
+btnAutoPick.Parent = container
+
+local corner2 = Instance.new("UICorner")
+corner2.CornerRadius = UDim.new(0, 6)
+corner2.Parent = btnAutoPick
+
+table.insert(Connections, btnAutoPick.MouseButton1Click:Connect(function()
+	Config.AutoPickBall = not Config.AutoPickBall
+	if Config.AutoPickBall then
+		btnAutoPick.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
+		btnAutoPick.Text = "Auto Pick Ball: ON"
+	else
+		btnAutoPick.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+		btnAutoPick.Text = "Auto Pick Ball: OFF"
+	end
+end))
+
+-- Teleport Ball Button (Nút ấn thủ công)
 local btnTeleport = Instance.new("TextButton")
 btnTeleport.Size = UDim2.new(1, 0, 0, 32)
 btnTeleport.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-btnTeleport.Text = "Teleport To Ball"
+btnTeleport.Text = "Teleport To Ball (1-Click)"
 btnTeleport.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnTeleport.Font = Enum.Font.SourceSansBold
 btnTeleport.TextSize = 12
 btnTeleport.Parent = container
 
-local btnTeleCorner = Instance.new("UICorner")
-btnTeleCorner.CornerRadius = UDim.new(0, 6)
-btnTeleCorner.Parent = btnTeleport
+local corner3 = Instance.new("UICorner")
+corner3.CornerRadius = UDim.new(0, 6)
+corner3.Parent = btnTeleport
 
 table.insert(Connections, btnTeleport.MouseButton1Click:Connect(function()
 	TeleportToBall()

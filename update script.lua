@@ -1,4 +1,4 @@
--- DELTA X: FIX ESP BOX USING DRAWING API (PERFECT FOOT ALIGNMENT)
+-- DELTA X: FULL STATIC MENU - DEFAULT ALL OFF
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -33,13 +33,14 @@ _G.Delta_Cleanup = function()
 	DrawObjects = {}
 end
 
+-- TẤT CẢ MẶC ĐỊNH LÀ FALSE (OFF)
 local Settings = {
-	ESP = true,
-	Health = true,
-	Lines = true,
-	Skeleton = true,
-	Aimbot = true,
-	WallCheck = true,
+	ESP = false,
+	Health = false,
+	Lines = false,
+	Skeleton = false,
+	Aimbot = false,
+	WallCheck = false,
 	FOVSize = 120,
 	Smoothness = 0.25,
 }
@@ -74,7 +75,7 @@ fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 fovFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 fovFrame.BackgroundTransparency = 1
-fovFrame.Visible = Settings.Aimbot
+fovFrame.Visible = false
 fovFrame.Parent = screenGui
 
 local fovCorner = Instance.new("UICorner")
@@ -86,7 +87,7 @@ fovStroke.Color = Color3.fromRGB(0, 255, 255)
 fovStroke.Thickness = 1.5
 fovStroke.Parent = fovFrame
 
--- Menu GUI
+-- Menu Toggle Button
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
 toggleBtn.Size = UDim2.new(0, 50, 0, 50)
@@ -138,7 +139,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP DRAWING FIX"
+title.Text = "DELTA ESP (ALL OFF)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -154,6 +155,20 @@ local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 4)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = container
+
+local function updateHealthUIState()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local gui = hrp:FindFirstChild("ESP_HealthUI")
+				if gui then
+					gui.Enabled = Settings.Health
+				end
+			end
+		end
+	end
+end
 
 local function createToggle(name, text)
 	local btn = Instance.new("TextButton")
@@ -175,6 +190,9 @@ local function createToggle(name, text)
 			btn.Text = text .. ": OFF"
 		end
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		if name == "Health" then
+			updateHealthUIState()
+		end
 	end
 	update()
 
@@ -270,7 +288,7 @@ local function getClosestPlayerInFOV()
 end
 
 ----------------------------------------------------
--- 3. DRAWING LOGIC (DRAWING 2D BOX THUẦN)
+-- 3. DRAWING LOGIC
 ----------------------------------------------------
 local R15Joints = {
 	{"Head", "UpperTorso"},
@@ -308,7 +326,6 @@ end
 
 local function getPlayerDrawings(player)
 	if not DrawObjects[player] then
-		-- 4 cạnh của Box 2D
 		local boxLines = {
 			Top = createLine(Color3.fromRGB(0, 255, 0)),
 			Bottom = createLine(Color3.fromRGB(0, 255, 0)),
@@ -346,7 +363,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP (CÔNG THỨC TOÁN CHUẨN TỪNG PIXEL)
+-- 4. RENDER LOOP
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -369,7 +386,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 			local head = char and char:FindFirstChild("Head")
 
 			if char and humanoid and humanoid.Health > 0 and head then
-				-- Tìm điểm thấp nhất của bàn chân từ Skeleton/Parts
 				local lowestY = head.Position.Y
 				for _, part in ipairs(char:GetChildren()) do
 					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
@@ -380,7 +396,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 					end
 				end
 
-				-- Nếu không tìm thấy chân, mặc định lấy vị trí Head - 4.5 studs
 				if lowestY == head.Position.Y then
 					lowestY = head.Position.Y - 4.5
 				end
@@ -398,7 +413,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 					local bottomY = math.max(head2D.Y, feet2D.Y)
 					local centerX = head2D.X
 
-					-- 1. VẼ BOX 2D BẰNG DRAWING API
+					-- 1. BOX 2D
 					if Settings.ESP then
 						local topLeft = Vector2.new(centerX - width / 2, topY)
 						local topRight = Vector2.new(centerX + width / 2, topY)
@@ -424,7 +439,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
-					-- 2. Line Đỉnh Nối Đầu
+					-- 2. LINE ĐỈNH
 					if Settings.Lines then
 						objs.TopLine.From = topScreenPos
 						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
@@ -433,7 +448,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						objs.TopLine.Visible = false
 					end
 
-					-- 3. Skeleton Xương Thật
+					-- 3. SKELETON
 					if Settings.Skeleton then
 						local isR15 = char:FindFirstChild("UpperTorso") ~= nil
 						local joints = isR15 and R15Joints or R6Joints
@@ -509,6 +524,7 @@ local function applyESP(player)
 		billboard.Parent = hrp
 
 		local function updateHP()
+			billboard.Enabled = Settings.Health
 			if humanoid and humanoid.Health > 0 then
 				local hp = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
 				label.Text = string.format("%s\n[%d%% HP]", player.DisplayName, math.max(0, hp))

@@ -1,5 +1,4 @@
--- DELTA X: BLUE LOCK CONTROLL BALL & AUTO PICK BALL
--- Version: Instant Touch & Auto Collect
+-- DELTA X: BLUE LOCK CONTROLL BALL & AUTO PICK BALL (FIXED CENTER TELEPORT)
 
 if _G.BlueLock_Cleanup then pcall(_G.BlueLock_Cleanup) end
 
@@ -26,40 +25,65 @@ _G.BlueLock_Cleanup = function()
 	end
 end
 
--- CẤU HÌNH TÍNH NĂNG
 local Config = {
 	ControlBall = false,
-	AutoPickBall = false, -- Tự động hút/nhặt bóng
+	AutoPickBall = false,
 	BallSpeed = 100,
 }
 
 ----------------------------------------------------
--- 1. HÀM TÌM QUẢ BÓNG (BALL FINDER)
+-- 1. HÀM TÌM BÓNG CHUẨN (LỌC BÓNG GIẢ Ở GIỮA MAP)
 ----------------------------------------------------
 local function GetBall()
+	-- Kiểm tra nếu bóng cũ vẫn hợp lệ và không nằm ở giữa map
 	if CurrentBall and CurrentBall.Parent and CurrentBall:IsA("BasePart") then
-		return CurrentBall
+		if CurrentBall.Position.Magnitude > 5 and CurrentBall.Transparency < 1 then
+			return CurrentBall
+		end
 	end
 	
+	CurrentBall = nil
+	local closestBall = nil
+	local shortestDist = math.huge
+
+	local char = LocalPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+	-- Quét các part trong Workspace
 	for _, obj in ipairs(Workspace:GetDescendants()) do
 		if obj:IsA("BasePart") and (obj.Name == "Ball" or obj.Name == "Football" or obj.Name == "SoccerBall" or obj.Name:find("Ball")) then
+			-- Bỏ qua nếu là thuộc về nhân vật người chơi
 			if not obj:IsDescendantOf(LocalPlayer.Character) then
-				CurrentBall = obj
-				return obj
+				-- ĐIỀU KIỆN LỌC QUAN TRỌNG:
+				-- 1. Tọa độ không gần (0,0,0) (tâm map)
+				-- 2. Quả bóng không bị ẩn hoàn toàn (Transparency < 1)
+				if obj.Position.Magnitude > 10 and obj.Transparency < 0.9 then
+					if hrp then
+						local dist = (hrp.Position - obj.Position).Magnitude
+						if dist < shortestDist then
+							shortestDist = dist
+							closestBall = obj
+						end
+					else
+						closestBall = obj
+						break
+					end
+				end
 			end
 		end
 	end
-	return nil
+
+	CurrentBall = closestBall
+	return CurrentBall
 end
 
 ----------------------------------------------------
--- 2. DỊCH CHUYỂN & AUTO NHẶT BÓNG (INSTANT PICK)
+-- 2. DỊCH CHUYỂN & AUTO NHẶT BÓNG
 ----------------------------------------------------
 local function TeleportToBall()
 	local ball = GetBall()
 	local char = LocalPlayer.Character
 	if ball and char and char:FindFirstChild("HumanoidRootPart") then
-		-- Dịch chuyển đè thẳng vào tọa độ quả bóng để nhặt ngay lập tức
 		char.HumanoidRootPart.CFrame = ball.CFrame
 	end
 end
@@ -79,7 +103,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 	local char = LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-	-- Logic Auto Pick Ball: Liên tục hút lấy bóng nếu ở xa
+	-- Auto Pick Ball
 	if Config.AutoPickBall and ball and hrp then
 		local dist = (hrp.Position - ball.Position).Magnitude
 		if dist > 3 then
@@ -87,7 +111,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 		end
 	end
 
-	-- Logic Control Ball
+	-- Control Ball
 	if Config.ControlBall and ball then
 		if hrp then
 			local dist = (hrp.Position - ball.Position).Magnitude
@@ -133,7 +157,6 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- Main Frame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainMenu"
 mainFrame.Size = UDim2.new(0, 230, 0, 300)
@@ -151,7 +174,6 @@ stroke.Color = Color3.fromRGB(59, 130, 246)
 stroke.Thickness = 2
 stroke.Parent = mainFrame
 
--- Title
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 35)
 title.BackgroundTransparency = 1
@@ -161,7 +183,6 @@ title.Font = Enum.Font.SourceSansBold
 title.TextSize = 14
 title.Parent = mainFrame
 
--- Container
 local container = Instance.new("Frame")
 container.Size = UDim2.new(1, -20, 1, -45)
 container.Position = UDim2.new(0, 10, 0, 38)
@@ -224,11 +245,11 @@ table.insert(Connections, btnAutoPick.MouseButton1Click:Connect(function()
 	end
 end))
 
--- Teleport Ball Button (Nút ấn thủ công)
+-- Teleport Ball Button
 local btnTeleport = Instance.new("TextButton")
 btnTeleport.Size = UDim2.new(1, 0, 0, 32)
 btnTeleport.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-btnTeleport.Text = "Teleport To Ball (1-Click)"
+btnTeleport.Text = "Teleport To Ball"
 btnTeleport.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnTeleport.Font = Enum.Font.SourceSansBold
 btnTeleport.TextSize = 12
@@ -242,7 +263,7 @@ table.insert(Connections, btnTeleport.MouseButton1Click:Connect(function()
 	TeleportToBall()
 end))
 
--- Chỉnh Tốc độ Bóng (Speed Adjuster)
+-- Speed Adjuster
 local speedFrame = Instance.new("Frame")
 speedFrame.Size = UDim2.new(1, 0, 0, 50)
 speedFrame.BackgroundTransparency = 1

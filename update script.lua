@@ -72,7 +72,11 @@ wipeOldUI(CoreGui)
 if gethui then wipeOldUI(gethui()) end
 
 local parentContainer = LocalPlayer:WaitForChild("PlayerGui")
-if gethui then parentContainer = gethui() elseif CoreGui:FindFirstChild("RobloxGui") then parentContainer = CoreGui end
+if gethui then 
+	parentContainer = gethui() 
+elseif CoreGui:FindFirstChild("RobloxGui") then 
+	parentContainer = CoreGui:FindFirstChild("RobloxGui")
+end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "Delta_UI_" .. math.random(1000, 9999)
@@ -103,6 +107,7 @@ toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Text = "MENU"
 toggleBtn.Font = Enum.Font.SourceSansBold
 toggleBtn.TextSize = 14
+toggleBtn.Active = true
 toggleBtn.Parent = screenGui
 
 local btnCorner = Instance.new("UICorner") btnCorner.CornerRadius = UDim.new(1, 0) btnCorner.Parent = toggleBtn
@@ -591,8 +596,7 @@ task.spawn(function()
 					if tool then
 						tool:Activate()
 					else
-						-- Fallback giả lập Click Chuột Trái màn hình
-						VirtualInputManager = game:GetService("VirtualInputManager")
+						local VirtualInputManager = game:GetService("VirtualInputManager")
 						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
 						task.wait(0.01)
 						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
@@ -607,7 +611,6 @@ end)
 ----------------------------------------------------
 -- 7. RENDER & STEPPED LOOP
 ----------------------------------------------------
--- WALKSPEED LOOP (Áp dụng liên tục bằng Stepped để không bị override)
 table.insert(ScriptConnections, RunService.Stepped:Connect(function()
 	if Settings.WalkSpeedToggle and LocalPlayer.Character then
 		local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -755,7 +758,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 							local partB = char:FindFirstChild(joint[2])
 							local line = objs.Skeleton[i]
 
-							if partA and partB and line me
+							if partA and partB and line then
 								local posA, visA = Camera:WorldToViewportPoint(partA.Position)
 								local posB, visB = Camera:WorldToViewportPoint(partB.Position)
 
@@ -793,7 +796,7 @@ end))
 -- 8. HEALTH & NAME UI
 ----------------------------------------------------
 local function applyESP(player)
-	if player == LocalPlayer me return end
+	if player == LocalPlayer then return end
 
 	local function characterAdded(char)
 		local hrp = char:WaitForChild("HumanoidRootPart", 10)
@@ -843,4 +846,4 @@ end
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 
-print("✅ ĐÃ THÊM AUTO CLICK VÀ WALKSPEED THÀNH CÔNG!")
+print("✅ ĐÃ SỬA LỖI VÀ BẬT MENU THÀNH CÔNG!")

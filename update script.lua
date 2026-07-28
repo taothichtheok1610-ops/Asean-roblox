@@ -1,4 +1,4 @@
--- DELTA X: FIX ESP BOX ACCORDING TO HEAD & FEET (PERFECT ALIGNMENT)
+-- DELTA X: FIX ESP BOX USING DRAWING API (PERFECT FOOT ALIGNMENT)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -21,7 +21,9 @@ _G.Delta_Cleanup = function()
 
 	for _, obj in pairs(DrawObjects) do
 		if type(obj) == "table" then
-			if obj.BoxGui then obj.BoxGui:Destroy() end
+			if obj.BoxLines then
+				for _, line in pairs(obj.BoxLines) do if line.Remove then line:Remove() end end
+			end
 			if obj.TopLine then obj.TopLine:Remove() end
 			if obj.Skeleton then
 				for _, line in pairs(obj.Skeleton) do if line.Remove then line:Remove() end end
@@ -64,10 +66,6 @@ screenGui.Name = "Delta_UI_" .. math.random(1000, 9999)
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
-
-local boxContainer = Instance.new("Folder")
-boxContainer.Name = "Box2D_Container"
-boxContainer.Parent = screenGui
 
 -- FOV Circle
 local fovFrame = Instance.new("Frame")
@@ -140,7 +138,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP PERFECT BOX"
+title.Text = "DELTA ESP DRAWING FIX"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -272,7 +270,7 @@ local function getClosestPlayerInFOV()
 end
 
 ----------------------------------------------------
--- 3. DRAWING & GUI BOX LOGIC
+-- 3. DRAWING LOGIC (DRAWING 2D BOX THUẦN)
 ----------------------------------------------------
 local R15Joints = {
 	{"Head", "UpperTorso"},
@@ -302,7 +300,7 @@ local R6Joints = {
 local function createLine(color)
 	local line = Drawing.new("Line")
 	line.Thickness = 1.5
-	line.Color = color or Color3.fromRGB(255, 255, 255)
+	line.Color = color or Color3.fromRGB(0, 255, 0)
 	line.Transparency = 1
 	line.Visible = false
 	return line
@@ -310,16 +308,13 @@ end
 
 local function getPlayerDrawings(player)
 	if not DrawObjects[player] then
-		local boxFrame = Instance.new("Frame")
-		boxFrame.Name = "2DBox_" .. player.Name
-		boxFrame.BackgroundTransparency = 1
-		boxFrame.Visible = false
-		boxFrame.Parent = boxContainer
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = Color3.fromRGB(0, 255, 0)
-		stroke.Thickness = 1.5
-		stroke.Parent = boxFrame
+		-- 4 cạnh của Box 2D
+		local boxLines = {
+			Top = createLine(Color3.fromRGB(0, 255, 0)),
+			Bottom = createLine(Color3.fromRGB(0, 255, 0)),
+			Left = createLine(Color3.fromRGB(0, 255, 0)),
+			Right = createLine(Color3.fromRGB(0, 255, 0))
+		}
 
 		local topLine = createLine(Color3.fromRGB(255, 255, 0))
 
@@ -329,7 +324,7 @@ local function getPlayerDrawings(player)
 		end
 
 		DrawObjects[player] = {
-			BoxGui = boxFrame,
+			BoxLines = boxLines,
 			TopLine = topLine,
 			Skeleton = skeleton
 		}
@@ -339,11 +334,11 @@ end
 
 local function removePlayerDrawings(player)
 	if DrawObjects[player] then
-		if DrawObjects[player].BoxGui then DrawObjects[player].BoxGui:Destroy() end
-		if DrawObjects[player].TopLine then DrawObjects[player].TopLine:Remove() end
-		for _, line in ipairs(DrawObjects[player].Skeleton) do
-			if line then line:Remove() end
+		if DrawObjects[player].BoxLines then
+			for _, line in pairs(DrawObjects[player].BoxLines) do line:Remove() end
 		end
+		if DrawObjects[player].TopLine then DrawObjects[player].TopLine:Remove() end
+		for _, line in ipairs(DrawObjects[player].Skeleton) do line:Remove() end
 		DrawObjects[player] = nil
 	end
 end
@@ -351,7 +346,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP (CÔNG THỨC TOÁN MỚI - KHÔNG BAO GIỜ TRƯỢT)
+-- 4. RENDER LOOP (CÔNG THỨC TOÁN CHUẨN TỪNG PIXEL)
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -371,29 +366,62 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 			local objs = getPlayerDrawings(player)
 			local char = player.Character
 			local humanoid = char and char:FindFirstChild("Humanoid")
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
 			local head = char and char:FindFirstChild("Head")
 
-			if char and humanoid and humanoid.Health > 0 and hrp and head then
-				-- Tọa độ đỉnh trên đầu (+1.2 stud) và chân dưới (-3.0 stud tính từ HRP)
-				local headWorldPos = head.Position + Vector3.new(0, 1.2, 0)
-				local feetWorldPos = hrp.Position - Vector3.new(0, 3.2, 0)
+			if char and humanoid and humanoid.Health > 0 and head then
+				-- Tìm điểm thấp nhất của bàn chân từ Skeleton/Parts
+				local lowestY = head.Position.Y
+				for _, part in ipairs(char:GetChildren()) do
+					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
+						local bottomPartY = part.Position.Y - (part.Size.Y / 2)
+						if bottomPartY < lowestY then
+							lowestY = bottomPartY
+						end
+					end
+				end
 
-				local head2D, headOnScreen = Camera:WorldToViewportPoint(headWorldPos)
-				local feet2D, feetOnScreen = Camera:WorldToViewportPoint(feetWorldPos)
+				-- Nếu không tìm thấy chân, mặc định lấy vị trí Head - 4.5 studs
+				if lowestY == head.Position.Y then
+					lowestY = head.Position.Y - 4.5
+				end
 
-				if headOnScreen and feetOnScreen then
-					-- 1. TÍNH KHUNG BOX CHÍNH XÁC THEO MÀN HÌNH
+				local headTopWorld = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.3, 0)
+				local feetBottomWorld = Vector3.new(head.Position.X, lowestY, head.Position.Z)
+
+				local head2D, headVis = Camera:WorldToViewportPoint(headTopWorld)
+				local feet2D, feetVis = Camera:WorldToViewportPoint(feetBottomWorld)
+
+				if headVis or feetVis then
+					local height = math.abs(head2D.Y - feet2D.Y)
+					local width = height * 0.6
+					local topY = math.min(head2D.Y, feet2D.Y)
+					local bottomY = math.max(head2D.Y, feet2D.Y)
+					local centerX = head2D.X
+
+					-- 1. VẼ BOX 2D BẰNG DRAWING API
 					if Settings.ESP then
-						local height = math.abs(head2D.Y - feet2D.Y)
-						local width = height * 0.55
-						local centerX = (head2D.X + feet2D.X) / 2
+						local topLeft = Vector2.new(centerX - width / 2, topY)
+						local topRight = Vector2.new(centerX + width / 2, topY)
+						local bottomLeft = Vector2.new(centerX - width / 2, bottomY)
+						local bottomRight = Vector2.new(centerX + width / 2, bottomY)
 
-						objs.BoxGui.Size = UDim2.new(0, width, 0, height)
-						objs.BoxGui.Position = UDim2.new(0, centerX - (width / 2), 0, head2D.Y)
-						objs.BoxGui.Visible = true
+						objs.BoxLines.Top.From = topLeft
+						objs.BoxLines.Top.To = topRight
+						objs.BoxLines.Top.Visible = true
+
+						objs.BoxLines.Bottom.From = bottomLeft
+						objs.BoxLines.Bottom.To = bottomRight
+						objs.BoxLines.Bottom.Visible = true
+
+						objs.BoxLines.Left.From = topLeft
+						objs.BoxLines.Left.To = bottomLeft
+						objs.BoxLines.Left.Visible = true
+
+						objs.BoxLines.Right.From = topRight
+						objs.BoxLines.Right.To = bottomRight
+						objs.BoxLines.Right.Visible = true
 					else
-						objs.BoxGui.Visible = false
+						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
 					-- 2. Line Đỉnh Nối Đầu
@@ -438,12 +466,12 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 					end
 				else
-					objs.BoxGui.Visible = false
+					for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					objs.TopLine.Visible = false
 					for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 				end
 			else
-				objs.BoxGui.Visible = false
+				for _, line in pairs(objs.BoxLines) do line.Visible = false end
 				objs.TopLine.Visible = false
 				for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 			end

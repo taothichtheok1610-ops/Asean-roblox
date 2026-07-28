@@ -1,5 +1,4 @@
--- DELTA X: MOBILE DRAGGABLE MENU BUTTON (100% WORKING ON TOUCH)
-
+-- DELTA X: DRAGGABLE MENU BUTTON + DEFAULT ALL OFF + MEMORY SPEED
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -33,6 +32,7 @@ _G.Delta_Cleanup = function()
 	DrawObjects = {}
 end
 
+-- TẤT CẢ MẶC ĐỊNH OFF (Thêm thuộc tính Speed vào Settings)
 local Settings = {
 	ESP = false,
 	Health = false,
@@ -42,10 +42,12 @@ local Settings = {
 	WallCheck = false,
 	FOVSize = 120,
 	Smoothness = 0.25,
+	SpeedEnabled = false,
+	WalkSpeed = 16, -- Tốc độ mặc định của Roblox
 }
 
 ----------------------------------------------------
--- 1. CLEANUP & SCREEN GUI
+-- 1. CLEANUP UI CŨ & MENU GUI
 ----------------------------------------------------
 local function wipeOldUI(folder)
 	if not folder then return end
@@ -86,36 +88,60 @@ fovStroke.Color = Color3.fromRGB(0, 255, 255)
 fovStroke.Thickness = 1.5
 fovStroke.Parent = fovFrame
 
-----------------------------------------------------
--- NÚT MENU (CẤU TRÚC FRAME CẢM ỨNG DRAGGABLE)
-----------------------------------------------------
--- Container chính di chuyển
-local dragBtnHolder = Instance.new("Frame")
-dragBtnHolder.Name = "MenuBtnHolder"
-dragBtnHolder.Size = UDim2.new(0, 50, 0, 50)
-dragBtnHolder.Position = UDim2.new(0.02, 0, 0.35, 0)
-dragBtnHolder.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-dragBtnHolder.Active = true
-dragBtnHolder.Parent = screenGui
-
-local holderCorner = Instance.new("UICorner")
-holderCorner.CornerRadius = UDim.new(1, 0)
-holderCorner.Parent = dragBtnHolder
-
+-- Menu Toggle Button (Kéo thả được)
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
-toggleBtn.Size = UDim2.new(1, 0, 1, 0)
-toggleBtn.BackgroundTransparency = 1
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0.02, 0, 0.35, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Text = "MENU"
 toggleBtn.Font = Enum.Font.SourceSansBold
 toggleBtn.TextSize = 14
-toggleBtn.Parent = dragBtnHolder
+toggleBtn.Active = true
+toggleBtn.Parent = screenGui
 
--- Bảng Menu
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleBtn
+
+-- LOGIC KÉO THẢ CHO NÚT MENU TRÒN
+local btnDragging = false
+local btnDragStart = nil
+local btnStartPos = nil
+local hasDragged = false
+
+table.insert(ScriptConnections, toggleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		btnDragging = true
+		hasDragged = false
+		btnDragStart = input.Position
+		btnStartPos = toggleBtn.Position
+
+		local connection
+		connection = input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				btnDragging = false
+				if connection then connection:Disconnect() end
+			end
+		end)
+	end
+end))
+
+table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
+	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and btnDragging then
+		local delta = input.Position - btnDragStart
+		if delta.Magnitude > 5 then
+			hasDragged = true
+		end
+		toggleBtn.Position = UDim2.new(btnStartPos.X.Scale, btnStartPos.X.Offset + delta.X, btnStartPos.Y.Scale, btnStartPos.Y.Offset + delta.Y)
+	end
+end))
+
+-- Bảng Menu Chính (Đã tăng chiều cao để chứa thêm phần Memory)
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 220, 0, 350)
+menuFrame.Size = UDim2.new(0, 230, 0, 460)
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -127,84 +153,37 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
-----------------------------------------------------
--- LOGIC KÉO THẢ TỐI ƯU CHO TOUCH & MOBILE
-----------------------------------------------------
-local dragging = false
-local dragStart = nil
-local startPos = nil
-local isMoved = false
-
-table.insert(ScriptConnections, dragBtnHolder.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		isMoved = false
-		dragStart = input.Position
-		startPos = dragBtnHolder.Position
-
-		local conn
-		conn = input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-				if conn then conn:Disconnect() end
-			end
-		end)
-	end
-end))
-
-table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		local delta = input.Position - dragStart
-		if delta.Magnitude > 3 then
-			isMoved = true
-		end
-		dragBtnHolder.Position = UDim2.new(
-			startPos.X.Scale, 
-			startPos.X.Offset + delta.X, 
-			startPos.Y.Scale, 
-			startPos.Y.Offset + delta.Y
-		)
-	end
-end))
-
--- Mở Menu (Chỉ mở khi chạm bấm nhanh, không mở khi đang kéo nút)
-table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
-	if not isMoved then
-		menuFrame.Visible = not menuFrame.Visible
-	end
-end))
-
--- Kéo thả bảng Menu chính
+-- LOGIC KÉO THẢ BẢNG MENU
 local menuDragging, menuDragStart, menuStartPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		menuDragging = true
 		menuDragStart = input.Position
 		menuStartPos = menuFrame.Position
-		local conn
-		conn = input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				menuDragging = false
-				if conn then conn:Disconnect() end
-			end
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then menuDragging = false end
 		end)
 	end
 end))
 
 table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
-	if menuDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and menuDragging then
 		local delta = input.Position - menuDragStart
 		menuFrame.Position = UDim2.new(menuStartPos.X.Scale, menuStartPos.X.Offset + delta.X, menuStartPos.Y.Scale, menuStartPos.Y.Offset + delta.Y)
 	end
 end))
 
-----------------------------------------------------
--- 2. GIAO DIỆN VÀ TÍNH NĂNG MENU
-----------------------------------------------------
+-- Bật/tắt Menu
+table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
+	if not hasDragged then
+		menuFrame.Visible = not menuFrame.Visible
+	end
+end))
+
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP (MOBILE DRAG)"
+title.Text = "DELTA MENU & MEMORY"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -227,7 +206,9 @@ local function updateHealthUIState()
 			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local gui = hrp:FindFirstChild("ESP_HealthUI")
-				if gui then gui.Enabled = Settings.Health end
+				if gui then
+					gui.Enabled = Settings.Health
+				end
 			end
 		end
 	end
@@ -253,7 +234,9 @@ local function createToggle(name, text)
 			btn.Text = text .. ": OFF"
 		end
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		if name == "Health" then updateHealthUIState() end
+		if name == "Health" then
+			updateHealthUIState()
+		end
 	end
 	update()
 
@@ -263,6 +246,7 @@ local function createToggle(name, text)
 	end))
 end
 
+-- FOV CONTROL
 local fovControl = Instance.new("Frame")
 fovControl.Size = UDim2.new(1, 0, 0, 26)
 fovControl.BackgroundTransparency = 1
@@ -303,7 +287,90 @@ createToggle("Aimbot", "Bật Aimbot FOV")
 createToggle("WallCheck", "Wall Check (Chống tường)")
 
 ----------------------------------------------------
--- 3. AIMBOT & DRAWING LOGIC
+-- THÊM MỤC MEMORY (WALKSPEED CONTROL 1-2000)
+----------------------------------------------------
+local memHeader = Instance.new("TextLabel")
+memHeader.Size = UDim2.new(1, 0, 0, 20)
+memHeader.BackgroundTransparency = 1
+memHeader.Text = "--- MEMORY SETTINGS ---"
+memHeader.TextColor3 = Color3.fromRGB(255, 215, 0)
+memHeader.Font = Enum.Font.SourceSansBold
+memHeader.TextSize = 12
+memHeader.Parent = container
+
+createToggle("SpeedEnabled", "Kích Hoạt WalkSpeed")
+
+local speedDisplay = Instance.new("TextLabel")
+speedDisplay.Size = UDim2.new(1, 0, 0, 20)
+speedDisplay.BackgroundTransparency = 1
+speedDisplay.Text = "Tốc độ hiện tại: 16"
+speedDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedDisplay.Font = Enum.Font.SourceSans
+speedDisplay.TextSize = 12
+speedDisplay.Parent = container
+
+local function setSpeed(val)
+	Settings.WalkSpeed = math.clamp(val, 1, 2000)
+	speedDisplay.Text = "Tốc độ hiện tại: " .. tostring(Settings.WalkSpeed)
+end
+
+-- Bộ nút tinh chỉnh Tốc độ (Fast Adjustment & Slow Adjustment)
+local speedControl1 = Instance.new("Frame")
+speedControl1.Size = UDim2.new(1, 0, 0, 24)
+speedControl1.BackgroundTransparency = 1
+speedControl1.Parent = container
+
+local btnSpdMinus100 = Instance.new("TextButton")
+btnSpdMinus100.Size = UDim2.new(0.48, 0, 1, 0)
+btnSpdMinus100.Text = "-100 Speed"
+btnSpdMinus100.BackgroundColor3 = Color3.fromRGB(60, 40, 40)
+btnSpdMinus100.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnSpdMinus100.Font = Enum.Font.SourceSansBold
+btnSpdMinus100.TextSize = 10
+btnSpdMinus100.Parent = speedControl1
+
+local btnSpdPlus100 = Instance.new("TextButton")
+btnSpdPlus100.Size = UDim2.new(0.48, 0, 1, 0)
+btnSpdPlus100.Position = UDim2.new(0.52, 0, 0, 0)
+btnSpdPlus100.Text = "+100 Speed"
+btnSpdPlus100.BackgroundColor3 = Color3.fromRGB(40, 60, 40)
+btnSpdPlus100.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnSpdPlus100.Font = Enum.Font.SourceSansBold
+btnSpdPlus100.TextSize = 10
+btnSpdPlus100.Parent = speedControl1
+
+btnSpdMinus100.MouseButton1Click:Connect(function() setSpeed(Settings.WalkSpeed - 100) end)
+btnSpdPlus100.MouseButton1Click:Connect(function() setSpeed(Settings.WalkSpeed + 100) end)
+
+local speedControl2 = Instance.new("Frame")
+speedControl2.Size = UDim2.new(1, 0, 0, 24)
+speedControl2.BackgroundTransparency = 1
+speedControl2.Parent = container
+
+local btnSpdMinus10 = Instance.new("TextButton")
+btnSpdMinus10.Size = UDim2.new(0.48, 0, 1, 0)
+btnSpdMinus10.Text = "-10 Speed"
+btnSpdMinus10.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+btnSpdMinus10.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnSpdMinus10.Font = Enum.Font.SourceSansBold
+btnSpdMinus10.TextSize = 10
+btnSpdMinus10.Parent = speedControl2
+
+local btnSpdPlus10 = Instance.new("TextButton")
+btnSpdPlus10.Size = UDim2.new(0.48, 0, 1, 0)
+btnSpdPlus10.Position = UDim2.new(0.52, 0, 0, 0)
+btnSpdPlus10.Text = "+10 Speed"
+btnSpdPlus10.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+btnSpdPlus10.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnSpdPlus10.Font = Enum.Font.SourceSansBold
+btnSpdPlus10.TextSize = 10
+btnSpdPlus10.Parent = speedControl2
+
+btnSpdMinus10.MouseButton1Click:Connect(function() setSpeed(Settings.WalkSpeed - 10) end)
+btnSpdPlus10.MouseButton1Click:Connect(function() setSpeed(Settings.WalkSpeed + 10) end)
+
+----------------------------------------------------
+-- 2. AIMBOT LOGIC
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -344,17 +411,32 @@ local function getClosestPlayerInFOV()
 	return closestPlayer
 end
 
+----------------------------------------------------
+-- 3. DRAWING LOGIC
+----------------------------------------------------
 local R15Joints = {
-	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
-	{"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
-	{"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
-	{"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
-	{"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
+	{"Head", "UpperTorso"},
+	{"UpperTorso", "LowerTorso"},
+	{"UpperTorso", "LeftUpperArm"},
+	{"LeftUpperArm", "LeftLowerArm"},
+	{"LeftLowerArm", "LeftHand"},
+	{"UpperTorso", "RightUpperArm"},
+	{"RightUpperArm", "RightLowerArm"},
+	{"RightLowerArm", "RightHand"},
+	{"LowerTorso", "LeftUpperLeg"},
+	{"LeftUpperLeg", "LeftLowerLeg"},
+	{"LeftLowerLeg", "LeftFoot"},
+	{"LowerTorso", "RightUpperLeg"},
+	{"RightUpperLeg", "RightLowerLeg"},
+	{"RightLowerLeg", "RightFoot"}
 }
 
 local R6Joints = {
-	{"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
-	{"Torso", "Left Leg"}, {"Torso", "Right Leg"}
+	{"Head", "Torso"},
+	{"Torso", "Left Arm"},
+	{"Torso", "Right Arm"},
+	{"Torso", "Left Leg"},
+	{"Torso", "Right Leg"}
 }
 
 local function createLine(color)
@@ -374,9 +456,13 @@ local function getPlayerDrawings(player)
 			Left = createLine(Color3.fromRGB(0, 255, 0)),
 			Right = createLine(Color3.fromRGB(0, 255, 0))
 		}
+
 		local topLine = createLine(Color3.fromRGB(255, 255, 0))
+
 		local skeleton = {}
-		for i = 1, 15 do table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255))) end
+		for i = 1, 15 do
+			table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255)))
+		end
 
 		DrawObjects[player] = {
 			BoxLines = boxLines,
@@ -401,9 +487,17 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP & HEALTH UI
+-- 4. RENDER LOOP
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
+	-- Áp dụng WalkSpeed liên tục nếu bật Memory Speed
+	if Settings.SpeedEnabled and LocalPlayer.Character then
+		local myHumanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if myHumanoid then
+			myHumanoid.WalkSpeed = Settings.WalkSpeed
+		end
+	end
+
 	fovFrame.Visible = Settings.Aimbot
 
 	if Settings.Aimbot then
@@ -428,11 +522,15 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 				for _, part in ipairs(char:GetChildren()) do
 					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
 						local bottomPartY = part.Position.Y - (part.Size.Y / 2)
-						if bottomPartY < lowestY then lowestY = bottomPartY end
+						if bottomPartY < lowestY then
+							lowestY = bottomPartY
+						end
 					end
 				end
 
-				if lowestY == head.Position.Y then lowestY = head.Position.Y - 4.5 end
+				if lowestY == head.Position.Y then
+					lowestY = head.Position.Y - 4.5
+				end
 
 				local headTopWorld = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.3, 0)
 				local feetBottomWorld = Vector3.new(head.Position.X, lowestY, head.Position.Z)
@@ -447,22 +545,33 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 					local bottomY = math.max(head2D.Y, feet2D.Y)
 					local centerX = head2D.X
 
-					-- BOX 2D
+					-- 1. BOX 2D
 					if Settings.ESP then
 						local topLeft = Vector2.new(centerX - width / 2, topY)
 						local topRight = Vector2.new(centerX + width / 2, topY)
 						local bottomLeft = Vector2.new(centerX - width / 2, bottomY)
 						local bottomRight = Vector2.new(centerX + width / 2, bottomY)
 
-						objs.BoxLines.Top.From = topLeft; objs.BoxLines.Top.To = topRight; objs.BoxLines.Top.Visible = true
-						objs.BoxLines.Bottom.From = bottomLeft; objs.BoxLines.Bottom.To = bottomRight; objs.BoxLines.Bottom.Visible = true
-						objs.BoxLines.Left.From = topLeft; objs.BoxLines.Left.To = bottomLeft; objs.BoxLines.Left.Visible = true
-						objs.BoxLines.Right.From = topRight; objs.BoxLines.Right.To = bottomRight; objs.BoxLines.Right.Visible = true
+						objs.BoxLines.Top.From = topLeft
+						objs.BoxLines.Top.To = topRight
+						objs.BoxLines.Top.Visible = true
+
+						objs.BoxLines.Bottom.From = bottomLeft
+						objs.BoxLines.Bottom.To = bottomRight
+						objs.BoxLines.Bottom.Visible = true
+
+						objs.BoxLines.Left.From = topLeft
+						objs.BoxLines.Left.To = bottomLeft
+						objs.BoxLines.Left.Visible = true
+
+						objs.BoxLines.Right.From = topRight
+						objs.BoxLines.Right.To = bottomRight
+						objs.BoxLines.Right.Visible = true
 					else
 						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
-					-- LINE ĐỈNH
+					-- 2. LINE ĐỈNH
 					if Settings.Lines then
 						objs.TopLine.From = topScreenPos
 						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
@@ -471,7 +580,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						objs.TopLine.Visible = false
 					end
 
-					-- SKELETON
+					-- 3. SKELETON
 					if Settings.Skeleton then
 						local isR15 = char:FindFirstChild("UpperTorso") ~= nil
 						local joints = isR15 and R15Joints or R6Joints
@@ -492,10 +601,14 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 								else
 									line.Visible = false
 								end
-							elseif line then line.Visible = false end
+							elseif line then
+								line.Visible = false
+							end
 						end
 
-						for i = #joints + 1, #objs.Skeleton do objs.Skeleton[i].Visible = false end
+						for i = #joints + 1, #objs.Skeleton do
+							objs.Skeleton[i].Visible = false
+						end
 					else
 						for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 					end
@@ -513,6 +626,9 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	end
 end))
 
+----------------------------------------------------
+-- 5. HEALTH & NAME UI
+----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
 

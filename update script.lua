@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK (FIX MOVEMENT)
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK (FIX TOUCH/JOYSTICK)
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -6,7 +6,6 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -329,7 +328,7 @@ createSpeedBtn("+10", 0.50, 0.25, 10)
 createSpeedBtn("+100", 0.75, 0.25, 100)
 
 -- Controls: Auto Click (Tốc độ đánh ms)
-createToggle("AutoClick", "⚔️ Auto Click")
+createToggle("AutoClick", "⚔️ Auto Click (Mobile Fix)")
 
 local clickInfoLabel = Instance.new("TextLabel")
 clickInfoLabel.Size = UDim2.new(0.95, 0, 0, 20)
@@ -585,7 +584,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. AUTO CLICK ĐÃ ĐƯỢC CHỐNG ĐƠ DI CHUYỂN (ÉP HUMANOID)
+-- 6. AUTO CLICK CHUYÊN DỤNG CHO MOBILE (KHÔNG CAN THIỆP CẢM ỨNG)
 ----------------------------------------------------
 task.spawn(function()
 	while true do
@@ -595,30 +594,24 @@ task.spawn(function()
 				if char then
 					local humanoid = char:FindFirstChildOfClass("Humanoid")
 					if humanoid then
-						-- Ép trạng thái di chuyển của nhân vật luôn mở
+						-- Đảm bảo trạng thái di chuyển luôn sẵn sàng
+						humanoid.AutoRotate = true
 						humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
 						humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
 					end
 					
 					local tool = char:FindFirstChildOfClass("Tool")
 					if tool then
-						-- Gọi hàm chém không làm gián đoạn luồng chính
+						-- Gọi trực tiếp qua Activate() trong luồng độc lập
 						coroutine.wrap(function()
 							tool:Activate()
-						end)()
-					else
-						-- Bấm nhấp nhả chuột theo luồng riêng
-						coroutine.wrap(function()
-							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-							task.wait(0.01)
-							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 						end)()
 					end
 				end
 			end)
 		end
 		
-		local delayTime = math.max(Settings.ClickInterval / 1000, 0.08)
+		local delayTime = math.max(Settings.ClickInterval / 1000, 0.1)
 		task.wait(delayTime)
 	end
 end)

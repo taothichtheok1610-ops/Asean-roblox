@@ -1,4 +1,4 @@
--- DELTA X: FIX 2D BOX POSITION (BOUNDING BOX METHOD - 100% ACCURATE)
+-- DELTA X: FIX ESP BOX ACCORDING TO HEAD & FEET (PERFECT ALIGNMENT)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -140,7 +140,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP 2D BOX FIX"
+title.Text = "DELTA ESP PERFECT BOX"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -351,7 +351,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP (ĐÃ SỬA CÁCH TÍNH BOX CHÍNH XÁC)
+-- 4. RENDER LOOP (CÔNG THỨC TOÁN MỚI - KHÔNG BAO GIỜ TRƯỢT)
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -375,20 +375,22 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 			local head = char and char:FindFirstChild("Head")
 
 			if char and humanoid and humanoid.Health > 0 and hrp and head then
-				local cframe, size = char:GetBoundingBox()
-				local hrpPos, onScreen = Camera:WorldToViewportPoint(cframe.Position)
+				-- Tọa độ đỉnh trên đầu (+1.2 stud) và chân dưới (-3.0 stud tính từ HRP)
+				local headWorldPos = head.Position + Vector3.new(0, 1.2, 0)
+				local feetWorldPos = hrp.Position - Vector3.new(0, 3.2, 0)
 
-				if onScreen then
-					-- 1. TÍNH KHUNG 2D CỰC CHUẨN BẰNG BOUNDING BOX
+				local head2D, headOnScreen = Camera:WorldToViewportPoint(headWorldPos)
+				local feet2D, feetOnScreen = Camera:WorldToViewportPoint(feetWorldPos)
+
+				if headOnScreen and feetOnScreen then
+					-- 1. TÍNH KHUNG BOX CHÍNH XÁC THEO MÀN HÌNH
 					if Settings.ESP then
-						local topPos = Camera:WorldToViewportPoint(cframe.Position + Vector3.new(0, size.Y / 2, 0))
-						local bottomPos = Camera:WorldToViewportPoint(cframe.Position - Vector3.new(0, size.Y / 2, 0))
-
-						local height = math.abs(topPos.Y - bottomPos.Y)
+						local height = math.abs(head2D.Y - feet2D.Y)
 						local width = height * 0.55
+						local centerX = (head2D.X + feet2D.X) / 2
 
 						objs.BoxGui.Size = UDim2.new(0, width, 0, height)
-						objs.BoxGui.Position = UDim2.new(0, hrpPos.X - (width / 2), 0, topPos.Y)
+						objs.BoxGui.Position = UDim2.new(0, centerX - (width / 2), 0, head2D.Y)
 						objs.BoxGui.Visible = true
 					else
 						objs.BoxGui.Visible = false
@@ -396,9 +398,8 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 
 					-- 2. Line Đỉnh Nối Đầu
 					if Settings.Lines then
-						local headScreenPos = Camera:WorldToViewportPoint(head.Position)
 						objs.TopLine.From = topScreenPos
-						objs.TopLine.To = Vector2.new(headScreenPos.X, headScreenPos.Y)
+						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
 						objs.TopLine.Visible = true
 					else
 						objs.TopLine.Visible = false

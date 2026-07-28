@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM (NO KILL AURA - WITH SCROLL MENU & TEAM CHECK)
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000)
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -45,6 +45,8 @@ local Settings = {
 	WallCheck = false,
 	TeamCheck = false,      -- 👥 KIỂM TRA TEAM
 	Fly = false,            -- ✈️ FLY THEO PLAYER
+	WalkSpeedToggle = false,-- ⚡ BẬT/TẮT WALKSPEED
+	WalkSpeed = 16,         -- ⚡ TỐC ĐỘ BAN ĐẦU
 	FOVSize = 120,
 	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY
 	Smoothness = 0.25,
@@ -139,7 +141,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "⭐ DELTA ESP & AIM"
+title.Text = "⭐ DELTA ESP & AIM & SPEED"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -207,7 +209,7 @@ local function createToggle(name, text)
 	end))
 end
 
--- Controls
+-- Controls: FOV
 local fovControl = Instance.new("Frame")
 fovControl.Size = UDim2.new(0.95, 0, 0, 26)
 fovControl.BackgroundTransparency = 1
@@ -242,6 +244,7 @@ btnPlus.MouseButton1Click:Connect(function()
 	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
+-- Controls: Fly Height
 local flyInfoLabel = Instance.new("TextLabel")
 flyInfoLabel.Size = UDim2.new(0.95, 0, 0, 20)
 flyInfoLabel.BackgroundTransparency = 1
@@ -278,7 +281,46 @@ local c4 = Instance.new("UICorner") c4.CornerRadius = UDim.new(0, 5) c4.Parent =
 btnFlyDown.MouseButton1Click:Connect(function() Settings.FlyHeight = math.max(1, Settings.FlyHeight - 1) end)
 btnFlyUp.MouseButton1Click:Connect(function() Settings.FlyHeight = math.min(20, Settings.FlyHeight + 1) end)
 
--- Nút Toggles
+-- Controls: WalkSpeed (1 - 2000)
+createToggle("WalkSpeedToggle", "⚡ Lock WalkSpeed")
+
+local speedInfoLabel = Instance.new("TextLabel")
+speedInfoLabel.Size = UDim2.new(0.95, 0, 0, 20)
+speedInfoLabel.BackgroundTransparency = 1
+speedInfoLabel.Text = "Tốc Độ WalkSpeed: 16"
+speedInfoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+speedInfoLabel.Font = Enum.Font.SourceSansBold
+speedInfoLabel.TextSize = 12
+speedInfoLabel.Parent = scrollContainer
+
+local speedControl = Instance.new("Frame")
+speedControl.Size = UDim2.new(0.95, 0, 0, 26)
+speedControl.BackgroundTransparency = 1
+speedControl.Parent = scrollContainer
+
+local function createSpeedBtn(text, posScale, sizeScale, amount)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(sizeScale, -2, 1, 0)
+	btn.Position = UDim2.new(posScale, 0, 0, 0)
+	btn.Text = text
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 80)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 10
+	btn.Parent = speedControl
+	local sc = Instance.new("UICorner") sc.CornerRadius = UDim.new(0, 4) sc.Parent = btn
+
+	btn.MouseButton1Click:Connect(function()
+		Settings.WalkSpeed = math.clamp(Settings.WalkSpeed + amount, 1, 2000)
+	end)
+end
+
+createSpeedBtn("-100", 0, 0.25, -100)
+createSpeedBtn("-10", 0.25, 0.25, -10)
+createSpeedBtn("+10", 0.50, 0.25, 10)
+createSpeedBtn("+100", 0.75, 0.25, 100)
+
+-- Nút Toggles Khác
 createToggle("ESP", "📦 Khung Hộp 2D")
 createToggle("Health", "❤️ Hiện Tên & HP")
 createToggle("Lines", "📍 Line Nối Đầu")
@@ -296,7 +338,7 @@ table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 end))
 
 ----------------------------------------------------
--- 2. LOGIC KIỂM TRA TEAM (ĐÃ HOÀN THIỆN)
+-- 2. LOGIC KIỂM TRA TEAM
 ----------------------------------------------------
 local function isSameTeam(player)
 	if not Settings.TeamCheck then return false end
@@ -496,11 +538,22 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. RENDER LOOP
+-- 6. RENDER & STEPPED LOOP
 ----------------------------------------------------
+-- WALKSPEED LOOP (Áp dụng liên tục bằng Stepped để không bị override)
+table.insert(ScriptConnections, RunService.Stepped:Connect(function()
+	if Settings.WalkSpeedToggle and LocalPlayer.Character then
+		local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = Settings.WalkSpeed
+		end
+	end
+end))
+
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
 	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
+	speedInfoLabel.Text = string.format("Tốc Độ WalkSpeed: %d", Settings.WalkSpeed)
 
 	-- FLY LOGIC
 	if Settings.Fly then
@@ -722,4 +775,4 @@ end
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 
-print("✅ ĐÃ XÓA KILL AURA - ĐÃ THÊM KHUNG CUỘN MENU VÀ TEAM CHECK NGUYÊN BẢN!")
+print("✅ ĐÃ THÊM WALKSPEED (1-2000) THÀNH CÔNG!")

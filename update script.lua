@@ -1,4 +1,4 @@
--- DELTA X: FULL FIX (2D BOX + TOP LINE + SKELETON + AIMBOT SMOOTH)
+-- DELTA X: FIX FULL 2D BOX (USE 4 LINES FOR GUARANTEED DRAWING)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -21,7 +21,9 @@ _G.Delta_Cleanup = function()
 
 	for _, obj in pairs(DrawObjects) do
 		if type(obj) == "table" then
-			if obj.Box then obj.Box:Remove() end
+			if obj.BoxLines then
+				for _, line in pairs(obj.BoxLines) do if line.Remove then line:Remove() end end
+			end
 			if obj.TopLine then obj.TopLine:Remove() end
 			if obj.Skeleton then
 				for _, line in pairs(obj.Skeleton) do if line.Remove then line:Remove() end end
@@ -137,7 +139,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP 2D BOX & SKELETON"
+title.Text = "DELTA ESP 2D BOX FIX"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -183,7 +185,7 @@ local function createToggle(name, text)
 	end))
 end
 
--- Tăng/Giảm FOV
+-- Controls
 local fovControl = Instance.new("Frame")
 fovControl.Size = UDim2.new(1, 0, 0, 26)
 fovControl.BackgroundTransparency = 1
@@ -216,34 +218,7 @@ btnPlus.MouseButton1Click:Connect(function()
 	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
--- Smoothness Aim
-local smoothBtn = Instance.new("TextButton")
-smoothBtn.Size = UDim2.new(1, 0, 0, 26)
-smoothBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 200)
-smoothBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-smoothBtn.Font = Enum.Font.SourceSansBold
-smoothBtn.TextSize = 11
-smoothBtn.Text = "Độ mượt Aim: VỪA"
-smoothBtn.Parent = container
-
-local smoothCorner = Instance.new("UICorner")
-smoothCorner.CornerRadius = UDim.new(0, 5)
-smoothCorner.Parent = smoothBtn
-
-smoothBtn.MouseButton1Click:Connect(function()
-	if Settings.Smoothness == 0.25 then
-		Settings.Smoothness = 0.08
-		smoothBtn.Text = "Độ mượt Aim: RẤT MƯỢT"
-	elseif Settings.Smoothness == 0.08 then
-		Settings.Smoothness = 1.0
-		smoothBtn.Text = "Độ mượt Aim: KHÓA CHẶT"
-	else
-		Settings.Smoothness = 0.25
-		smoothBtn.Text = "Độ mượt Aim: VỪA"
-	end
-end)
-
-createToggle("ESP", "Khung Hộp 2D (2D Box)")
+createToggle("ESP", "Khung Hộp 2D (Box)")
 createToggle("Health", "Hiện Tên & % Máu")
 createToggle("Lines", "Line Đỉnh Nối Đầu")
 createToggle("Skeleton", "Hiện Xương Thật (Skeleton)")
@@ -297,7 +272,7 @@ local function getClosestPlayerInFOV()
 end
 
 ----------------------------------------------------
--- 3. DRAWING 2D BOX & SKELETON & LINE TOP
+-- 3. DRAWING (2D BOX BẰNG 4 TIA LINE + SKELETON)
 ----------------------------------------------------
 local R15Joints = {
 	{"Head", "UpperTorso"},
@@ -324,10 +299,10 @@ local R6Joints = {
 	{"Torso", "Right Leg"}
 }
 
-local function createLine()
+local function createLine(color)
 	local line = Drawing.new("Line")
 	line.Thickness = 1.5
-	line.Color = Color3.fromRGB(255, 255, 255)
+	line.Color = color or Color3.fromRGB(255, 0, 0)
 	line.Transparency = 1
 	line.Visible = false
 	return line
@@ -335,24 +310,23 @@ end
 
 local function getPlayerDrawings(player)
 	if not DrawObjects[player] then
-		local box = Drawing.new("Square")
-		box.Thickness = 1.5
-		box.Color = Color3.fromRGB(255, 0, 0)
-		box.Filled = false
-		box.Transparency = 1
+		-- Tạo 4 cạnh cho Hộp 2D
+		local boxLines = {
+			Top = createLine(Color3.fromRGB(0, 255, 0)),
+			Bottom = createLine(Color3.fromRGB(0, 255, 0)),
+			Left = createLine(Color3.fromRGB(0, 255, 0)),
+			Right = createLine(Color3.fromRGB(0, 255, 0))
+		}
 
-		local topLine = Drawing.new("Line")
-		topLine.Thickness = 1.5
-		topLine.Color = Color3.fromRGB(255, 255, 0)
-		topLine.Transparency = 1
+		local topLine = createLine(Color3.fromRGB(255, 255, 0))
 
 		local skeleton = {}
 		for i = 1, 15 do
-			table.insert(skeleton, createLine())
+			table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255)))
 		end
 
 		DrawObjects[player] = {
-			Box = box,
+			BoxLines = boxLines,
 			TopLine = topLine,
 			Skeleton = skeleton
 		}
@@ -362,7 +336,9 @@ end
 
 local function removePlayerDrawings(player)
 	if DrawObjects[player] then
-		if DrawObjects[player].Box then DrawObjects[player].Box:Remove() end
+		if DrawObjects[player].BoxLines then
+			for _, line in pairs(DrawObjects[player].BoxLines) do if line then line:Remove() end end
+		end
 		if DrawObjects[player].TopLine then DrawObjects[player].TopLine:Remove() end
 		for _, line in ipairs(DrawObjects[player].Skeleton) do
 			if line then line:Remove() end
@@ -374,7 +350,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP (100% DRAWING OVERLAY)
+-- 4. RENDER LOOP
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -391,8 +367,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0)
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		-- Đảm bảo loại trừ chính bạn chuẩn xác 100%
-		if player ~= LocalPlayer and player.UserId ~= LocalPlayer.UserId then
+		if player ~= LocalPlayer then
 			local objs = getPlayerDrawings(player)
 			local char = player.Character
 			local humanoid = char and char:FindFirstChild("Humanoid")
@@ -403,20 +378,40 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 				local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 
 				if onScreen then
-					-- TÍNH TOÁN KHUNG HỘP 2D ôm sát thân
-					local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-					local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+					-- TÍNH TOÁN KHUNG HỘP 2D CHUẨN KÍCH THƯỚC
+					local headWorld = head.Position + Vector3.new(0, 1.2, 0)
+					local legWorld = hrp.Position - Vector3.new(0, 3.2, 0)
+
+					local headPos = Camera:WorldToViewportPoint(headWorld)
+					local legPos = Camera:WorldToViewportPoint(legWorld)
 
 					local height = math.abs(headPos.Y - legPos.Y)
-					local width = height / 1.5
+					local width = height * 0.65
 
-					-- 1. Xử lý Hộp 2D (Square)
+					local topLeft = Vector2.new(hrpPos.X - width / 2, headPos.Y)
+					local topRight = Vector2.new(hrpPos.X + width / 2, headPos.Y)
+					local bottomLeft = Vector2.new(hrpPos.X - width / 2, legPos.Y)
+					local bottomRight = Vector2.new(hrpPos.X + width / 2, legPos.Y)
+
+					-- 1. Vẽ 2D Box (Nối 4 Cạnh)
 					if Settings.ESP then
-						objs.Box.Size = Vector2.new(width, height)
-						objs.Box.Position = Vector2.new(hrpPos.X - width / 2, headPos.Y)
-						objs.Box.Visible = true
+						objs.BoxLines.Top.From = topLeft
+						objs.BoxLines.Top.To = topRight
+						objs.BoxLines.Top.Visible = true
+
+						objs.BoxLines.Bottom.From = bottomLeft
+						objs.BoxLines.Bottom.To = bottomRight
+						objs.BoxLines.Bottom.Visible = true
+
+						objs.BoxLines.Left.From = topLeft
+						objs.BoxLines.Left.To = bottomLeft
+						objs.BoxLines.Left.Visible = true
+
+						objs.BoxLines.Right.From = topRight
+						objs.BoxLines.Right.To = bottomRight
+						objs.BoxLines.Right.Visible = true
 					else
-						objs.Box.Visible = false
+						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
 					-- 2. Line Đỉnh Nối Đầu
@@ -461,12 +456,12 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 					end
 				else
-					objs.Box.Visible = false
+					for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					objs.TopLine.Visible = false
 					for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 				end
 			else
-				objs.Box.Visible = false
+				for _, line in pairs(objs.BoxLines) do line.Visible = false end
 				objs.TopLine.Visible = false
 				for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 			end
@@ -478,7 +473,7 @@ end))
 -- 5. HEALTH & NAME UI
 ----------------------------------------------------
 local function applyESP(player)
-	if player == LocalPlayer or player.UserId == LocalPlayer.UserId then return end
+	if player == LocalPlayer then return end
 
 	local function characterAdded(char)
 		local hrp = char:WaitForChild("HumanoidRootPart", 10)

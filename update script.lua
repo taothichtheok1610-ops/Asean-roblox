@@ -1,4 +1,5 @@
--- DELTA X: FULL STATIC MENU - DEFAULT ALL OFF
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM - HOÀN CHỈNH
+-- Tất cả mặc định là OFF (Tắt)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -33,14 +34,17 @@ _G.Delta_Cleanup = function()
 	DrawObjects = {}
 end
 
--- TẤT CẢ MẶC ĐỊNH LÀ FALSE (OFF)
+-- ⭐ TOÀN BỘ SETTING MẶC ĐỊNH LÀ FALSE (OFF)
 local Settings = {
 	ESP = false,
 	Health = false,
 	Lines = false,
 	Skeleton = false,
 	Aimbot = false,
+	LockAim = false,        -- 🔒 LOCK AIM CHẶT
+	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
 	WallCheck = false,
+	TeamCheck = true,       -- 👥 TEAM CHECK (MẶC ĐỊNH BẬT)
 	FOVSize = 120,
 	Smoothness = 0.25,
 }
@@ -105,7 +109,7 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 220, 0, 350)
+menuFrame.Size = UDim2.new(0, 240, 0, 450)  -- ⭐ TĂNG CHIỀU CAO CHO THÊM BUTTON
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -139,8 +143,8 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP (ALL OFF)"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Text = "⭐ DELTA ESP PRO"
+title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
 title.Parent = menuFrame
@@ -184,10 +188,10 @@ local function createToggle(name, text)
 	local function update()
 		if Settings[name] then
 			btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-			btn.Text = text .. ": ON"
+			btn.Text = text .. ": ✓ ON"
 		else
 			btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-			btn.Text = text .. ": OFF"
+			btn.Text = text .. ": ✗ OFF"
 		end
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 		if name == "Health" then
@@ -234,19 +238,40 @@ btnPlus.MouseButton1Click:Connect(function()
 	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
-createToggle("ESP", "Khung Hộp 2D (Box)")
-createToggle("Health", "Hiện Tên & % Máu")
-createToggle("Lines", "Line Đỉnh Nối Đầu")
-createToggle("Skeleton", "Hiện Xương Thật (Skeleton)")
-createToggle("Aimbot", "Bật Aimbot FOV")
-createToggle("WallCheck", "Wall Check (Chống tường)")
+-- ⭐ TẠO CÁC TOGGLE
+createToggle("ESP", "📦 Khung Hộp 2D")
+createToggle("Health", "❤️ Hiện Tên & HP")
+createToggle("Lines", "📍 Line Nối Đầu")
+createToggle("Skeleton", "🦴 Skeleton Xương")
+createToggle("Aimbot", "🎯 Aimbot Mượt")
+createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
+createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
+createToggle("TeamCheck", "👥 Kiểm Tra Team")  -- ⭐ TEAM CHECK
+createToggle("WallCheck", "🚫 Wall Check")
 
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 	menuFrame.Visible = not menuFrame.Visible
 end))
 
 ----------------------------------------------------
--- 2. AIMBOT LOGIC
+-- 2. TEAM CHECK LOGIC
+----------------------------------------------------
+local function isSameTeam(player)
+	if not Settings.TeamCheck then return false end
+	if not player or not LocalPlayer then return false end
+	
+	local playerTeam = player.Team
+	local localPlayerTeam = LocalPlayer.Team
+	
+	-- Nếu không có team (neutral) thì không cùng team
+	if not playerTeam or not localPlayerTeam then return false end
+	
+	-- Kiểm tra có phải cùng team không
+	return playerTeam == localPlayerTeam
+end
+
+----------------------------------------------------
+-- 3. AIMBOT LOGIC
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -269,6 +294,9 @@ local function getClosestPlayerInFOV()
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
+			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
+			if isSameTeam(player) then continue end
+			
 			local head = player.Character:FindFirstChild("Head")
 			local humanoid = player.Character:FindFirstChild("Humanoid")
 
@@ -363,16 +391,33 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP
+-- 4. RENDER LOOP - ⭐ CÓ LOCK AIM + PREDICT AIM
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
 
+	-- ⭐ AIMBOT LOGIC (LOCK AIM + SMOOTH AIM + PREDICT)
 	if Settings.Aimbot then
 		local targetHead = getClosestPlayerInFOV()
 		if targetHead then
-			local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-			Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
+			local targetPos = targetHead.Position
+			
+			-- ⭐ DỰ ĐOÁN CHUYỂN ĐỘNG NẾU BẬT
+			if Settings.PredictAim and targetHead.Parent:FindFirstChild("Humanoid") then
+				local targetVel = targetHead.AssemblyLinearVelocity
+				targetPos = targetPos + (targetVel * 0.15)  -- Dự đoán 0.15 giây
+			end
+			
+			local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+			
+			-- ⭐ LOCK AIM CHẶT HOẶC SMOOTH AIM
+			if Settings.LockAim then
+				-- Khóa trực tiếp, không mượt
+				Camera.CFrame = targetCFrame
+			else
+				-- Aim mượt mà bình thường
+				Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
+			end
 		end
 	end
 
@@ -380,6 +425,9 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
+			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
+			if isSameTeam(player) then continue end
+			
 			local objs = getPlayerDrawings(player)
 			local char = player.Character
 			local humanoid = char and char:FindFirstChild("Humanoid")
@@ -499,6 +547,8 @@ end))
 ----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
+	-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
+	if isSameTeam(player) then return end
 
 	local function characterAdded(char)
 		local hrp = char:WaitForChild("HumanoidRootPart", 10)
@@ -543,3 +593,8 @@ end
 
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
+
+----------------------------------------------------
+-- END OF SCRIPT
+----------------------------------------------------
+print("✅ DELTA ESP PRO LOADED! Nhấn MENU để bật các chức năng")

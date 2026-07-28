@@ -1,5 +1,5 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM - HOÀN CHỈNH
--- Tất cả mặc định là OFF (Tắt)
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + FLY + NOCLIP - MENU SCROLLABLE
+-- Mặc định các chức năng hỗ trợ là OFF, Team Check mặc định ON
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -34,29 +34,29 @@ _G.Delta_Cleanup = function()
 	DrawObjects = {}
 end
 
--- ⭐ TOÀN BỘ SETTING MẶC ĐỊNH LÀ FALSE (OFF)
+-- ⭐ CÀI ĐẶT MẶC ĐỊNH
 local Settings = {
 	ESP = false,
 	Health = false,
 	Lines = false,
 	Skeleton = false,
 	Aimbot = false,
-	LockAim = false,        -- 🔒 LOCK AIM CHẶT
-	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
-	AimSilent = false,      -- 🔫 AIM SILENT (BẮN LẶNG LẼ)
-	WallCheck = false,
-	TeamCheck = true,       -- 👥 TEAM CHECK (MẶC ĐỊNH BẬT)
-	Fly = false,            -- ✈️ FLY THEO PLAYER (MẶC ĐỊNH TẮT)
+	LockAim = false,        -- Lock Aim chặt
+	PredictAim = false,     -- Dự đoán di chuyển
+	AimSilent = false,      -- Aim Silent
+	WallCheck = false,      -- Kiểm tra tường
+	TeamCheck = true,       -- Kiểm tra Team
+	Fly = false,            -- Bay theo mục tiêu
+	Noclip = false,         -- Noclip (xuyên tường)
 	FOVSize = 120,
-	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY (MẶC ĐỊNH 5)
+	FlyHeight = 5,          -- Độ cao bay (studs)
 	Smoothness = 0.25,
 }
 
-local CurrentFlyTarget = nil  -- ⭐ LƯU TARGET ĐANG FLY
-local LastAimSilentTarget = nil  -- ⭐ LƯU TARGET AIM SILENT
+local CurrentFlyTarget = nil
 
 ----------------------------------------------------
--- 1. CLEANUP UI CŨ & MENU GUI
+-- 1. CLEANUP UI CŨ & MENU GUI (CÓ KHUNG CUỘN SCROLLINGFRAME)
 ----------------------------------------------------
 local function wipeOldUI(folder)
 	if not folder then return end
@@ -113,9 +113,10 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(1, 0)
 btnCorner.Parent = toggleBtn
 
+-- Khung Menu Ngoại
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 240, 0, 540)  -- ⭐ TĂNG CHIỀU CAO CHO AIM SILENT
+menuFrame.Size = UDim2.new(0, 240, 0, 360) -- Kích thước gọn gàng cố định
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -127,6 +128,7 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
+-- Kéo thả Menu
 local dragging, dragStart, startPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -149,22 +151,33 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "⭐ DELTA ESP PRO"
+title.Text = "⭐ DELTA ESP & COMBAT ULTRA"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
 title.Parent = menuFrame
 
-local container = Instance.new("Frame")
-container.Size = UDim2.new(1, -20, 1, -40)
-container.Position = UDim2.new(0, 10, 0, 30)
-container.BackgroundTransparency = 1
-container.Parent = menuFrame
+-- ⭐ KHUNG CUỘN (SCROLLING FRAME)
+local scrollContainer = Instance.new("ScrollingFrame")
+scrollContainer.Name = "ScrollContainer"
+scrollContainer.Size = UDim2.new(1, -12, 1, -40)
+scrollContainer.Position = UDim2.new(0, 6, 0, 32)
+scrollContainer.BackgroundTransparency = 1
+scrollContainer.BorderSizePixel = 0
+scrollContainer.ScrollBarThickness = 5
+scrollContainer.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 255)
+scrollContainer.CanvasSize = UDim2.new(0, 0, 0, 0) -- Sẽ tự động mở rộng
+scrollContainer.Parent = menuFrame
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 4)
+listLayout.Padding = UDim.new(0, 5)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-listLayout.Parent = container
+listLayout.Parent = scrollContainer
+
+-- Tự động cập nhật CanvasSize khi có thêm item
+table.insert(ScriptConnections, listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	scrollContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 15)
+end))
 
 local function updateHealthUIState()
 	for _, plr in ipairs(Players:GetPlayers()) do
@@ -173,7 +186,7 @@ local function updateHealthUIState()
 			if hrp then
 				local gui = hrp:FindFirstChild("ESP_HealthUI")
 				if gui then
-					gui.Enabled = Settings.Health
+					gui.Enabled = Settings.Health and not isSameTeam(plr)
 				end
 			end
 		end
@@ -182,10 +195,10 @@ end
 
 local function createToggle(name, text)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 26)
+	btn.Size = UDim2.new(0.95, 0, 0, 28)
 	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 11
-	btn.Parent = container
+	btn.TextSize = 12
+	btn.Parent = scrollContainer
 
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 5)
@@ -200,7 +213,7 @@ local function createToggle(name, text)
 			btn.Text = text .. ": ✗ OFF"
 		end
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		if name == "Health" then
+		if name == "Health" or name == "TeamCheck" then
 			updateHealthUIState()
 		end
 	end
@@ -212,10 +225,11 @@ local function createToggle(name, text)
 	end))
 end
 
+-- Điều chỉnh FOV Control
 local fovControl = Instance.new("Frame")
-fovControl.Size = UDim2.new(1, 0, 0, 26)
+fovControl.Size = UDim2.new(0.95, 0, 0, 28)
 fovControl.BackgroundTransparency = 1
-fovControl.Parent = container
+fovControl.Parent = scrollContainer
 
 local btnMinus = Instance.new("TextButton")
 btnMinus.Size = UDim2.new(0.48, 0, 1, 0)
@@ -224,6 +238,7 @@ btnMinus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 btnMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnMinus.Font = Enum.Font.SourceSansBold
 btnMinus.Parent = fovControl
+local corner1 = Instance.new("UICorner") corner1.CornerRadius = UDim.new(0, 5) corner1.Parent = btnMinus
 
 local btnPlus = Instance.new("TextButton")
 btnPlus.Size = UDim2.new(0.48, 0, 1, 0)
@@ -233,6 +248,7 @@ btnPlus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 btnPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnPlus.Font = Enum.Font.SourceSansBold
 btnPlus.Parent = fovControl
+local corner2 = Instance.new("UICorner") corner2.CornerRadius = UDim.new(0, 5) corner2.Parent = btnPlus
 
 btnMinus.MouseButton1Click:Connect(function()
 	Settings.FOVSize = math.max(40, Settings.FOVSize - 20)
@@ -244,21 +260,20 @@ btnPlus.MouseButton1Click:Connect(function()
 	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
--- ⭐ HIỂN THỊ THÔNG TIN FLY
+-- Điều chỉnh Fly Height Control
 local flyInfoLabel = Instance.new("TextLabel")
-flyInfoLabel.Size = UDim2.new(1, 0, 0, 20)
+flyInfoLabel.Size = UDim2.new(0.95, 0, 0, 18)
 flyInfoLabel.BackgroundTransparency = 1
 flyInfoLabel.Text = "Độ Cao Bay: 5"
 flyInfoLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
 flyInfoLabel.Font = Enum.Font.SourceSansBold
 flyInfoLabel.TextSize = 12
-flyInfoLabel.Parent = container
+flyInfoLabel.Parent = scrollContainer
 
--- ⭐ FLY HEIGHT CONTROL
 local flyHeightControl = Instance.new("Frame")
-flyHeightControl.Size = UDim2.new(1, 0, 0, 26)
+flyHeightControl.Size = UDim2.new(0.95, 0, 0, 28)
 flyHeightControl.BackgroundTransparency = 1
-flyHeightControl.Parent = container
+flyHeightControl.Parent = scrollContainer
 
 local btnFlyDown = Instance.new("TextButton")
 btnFlyDown.Size = UDim2.new(0.48, 0, 1, 0)
@@ -267,6 +282,7 @@ btnFlyDown.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
 btnFlyDown.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnFlyDown.Font = Enum.Font.SourceSansBold
 btnFlyDown.Parent = flyHeightControl
+local corner3 = Instance.new("UICorner") corner3.CornerRadius = UDim.new(0, 5) corner3.Parent = btnFlyDown
 
 local btnFlyUp = Instance.new("TextButton")
 btnFlyUp.Size = UDim2.new(0.48, 0, 1, 0)
@@ -276,26 +292,28 @@ btnFlyUp.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
 btnFlyUp.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnFlyUp.Font = Enum.Font.SourceSansBold
 btnFlyUp.Parent = flyHeightControl
+local corner4 = Instance.new("UICorner") corner4.CornerRadius = UDim.new(0, 5) corner4.Parent = btnFlyUp
 
 btnFlyDown.MouseButton1Click:Connect(function()
 	Settings.FlyHeight = math.max(1, Settings.FlyHeight - 1)
 end)
 
 btnFlyUp.MouseButton1Click:Connect(function()
-	Settings.FlyHeight = math.min(20, Settings.FlyHeight + 1)
+	Settings.FlyHeight = math.min(30, Settings.FlyHeight + 1)
 end)
 
--- ⭐ TẠO CÁC TOGGLE
+-- ⭐ DANH SÁCH TOGGLE BUTTONS TRONG KHUNG CUỘN
 createToggle("ESP", "📦 Khung Hộp 2D")
 createToggle("Health", "❤️ Hiện Tên & HP")
 createToggle("Lines", "📍 Line Nối Đầu")
 createToggle("Skeleton", "🦴 Skeleton Xương")
 createToggle("Aimbot", "🎯 Aimbot Mượt")
-createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
-createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
-createToggle("AimSilent", "🔫 Aim Silent")     -- ⭐ AIM SILENT
-createToggle("TeamCheck", "👥 Kiểm Tra Team")  -- ⭐ TEAM CHECK
-createToggle("Fly", "✈️ Fly Theo Player")     -- ⭐ FLY
+createToggle("LockAim", "🔒 Lock Aim Chặt")
+createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")
+createToggle("AimSilent", "🔫 Aim Silent")
+createToggle("TeamCheck", "👥 Kiểm Tra Team")
+createToggle("Fly", "✈️ Fly Theo Player")
+createToggle("Noclip", "👻 Noclip Xuyên Tường")
 createToggle("WallCheck", "🚫 Wall Check")
 
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
@@ -305,22 +323,31 @@ end))
 ----------------------------------------------------
 -- 2. TEAM CHECK LOGIC
 ----------------------------------------------------
-local function isSameTeam(player)
+function isSameTeam(player)
 	if not Settings.TeamCheck then return false end
-	if not player or not LocalPlayer then return false end
+	if not player or not LocalPlayer or player == LocalPlayer then return false end
 	
-	local playerTeam = player.Team
-	local localPlayerTeam = LocalPlayer.Team
+	if player.Team ~= nil and LocalPlayer.Team ~= nil then
+		return player.Team == LocalPlayer.Team
+	end
 	
-	-- Nếu không có team (neutral) thì không cùng team
-	if not playerTeam or not localPlayerTeam then return false end
-	
-	-- Kiểm tra có phải cùng team không
-	return playerTeam == localPlayerTeam
+	if player.TeamColor == LocalPlayer.TeamColor and player.TeamColor ~= nil then
+		return true
+	end
+
+	if player.Character and LocalPlayer.Character then
+		local pTeam = player.Character:FindFirstChild("Team") or player:FindFirstChild("Team")
+		local myTeam = LocalPlayer.Character:FindFirstChild("Team") or LocalPlayer:FindFirstChild("Team")
+		if pTeam and myTeam and pTeam.Value == myTeam.Value then
+			return true
+		end
+	end
+
+	return false
 end
 
 ----------------------------------------------------
--- 2.5 FLY LOGIC
+-- 3. FLY & NOCLIP LOGIC
 ----------------------------------------------------
 local function getClosestEnemy()
 	local closestEnemy = nil
@@ -328,7 +355,6 @@ local function getClosestEnemy()
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM
 			if isSameTeam(player) then continue end
 			
 			local head = player.Character:FindFirstChild("Head")
@@ -359,13 +385,24 @@ local function flyToTarget(targetPlayer)
 	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
 	if not myHRP then return end
 	
-	-- ⭐ FLY LÊN TRÊN ĐẦU PLAYER (THEO ĐỘ CAO TỪ SETTING)
 	local flyPos = targetHead.Position + Vector3.new(0, Settings.FlyHeight, 0)
-	myHRP.CFrame = CFrame.new(flyPos)
+	myHRP.CFrame = CFrame.new(flyPos, targetHead.Position)
 end
 
+table.insert(ScriptConnections, RunService.Stepped:Connect(function()
+	if Settings.Noclip or Settings.Fly then
+		if LocalPlayer.Character then
+			for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+				if part:IsA("BasePart") and part.CanCollide then
+					part.CanCollide = false
+				end
+			end
+		end
+	end
+end))
+
 ----------------------------------------------------
--- 2.6 WALL CHECK LOGIC (ISVISIBLE)
+-- 4. WALL CHECK & AIM SILENT LOGIC
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -381,9 +418,6 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
-----------------------------------------------------
--- 2.7 AIM SILENT LOGIC
-----------------------------------------------------
 local function getAimSilentTarget()
 	local closestPlayer = nil
 	local shortestDistance = Settings.FOVSize
@@ -391,14 +425,12 @@ local function getAimSilentTarget()
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM
 			if isSameTeam(player) then continue end
 			
 			local head = player.Character:FindFirstChild("Head")
 			local humanoid = player.Character:FindFirstChild("Humanoid")
 
 			if head and humanoid and humanoid.Health > 0 then
-				-- ⭐ KIỂM TRA WALL CHECK
 				if not isVisible(head) then continue end
 				
 				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
@@ -417,23 +449,17 @@ end
 
 local function aimSilent(targetPlayer)
 	if not targetPlayer or not targetPlayer.Character then return end
-	
 	local targetHead = targetPlayer.Character:FindFirstChild("Head")
-	if not targetHead then return end
-	
 	local myChar = LocalPlayer.Character
-	if not myChar then return end
-	
+	if not targetHead or not myChar then return end
 	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
 	if not myHRP then return end
-	
-	-- ⭐ ĐIỀU CHỈNH AIM VỀ ĐẦU ENEMY (LẶNG LẼ)
-	local targetCFrame = CFrame.new(myHRP.Position, targetHead.Position)
-	myHRP.CFrame = targetCFrame
+
+	myHRP.CFrame = CFrame.new(myHRP.Position, Vector3.new(targetHead.Position.X, myHRP.Position.Y, targetHead.Position.Z))
 end
 
 ----------------------------------------------------
--- 3. AIMBOT LOGIC
+-- 5. AIMBOT LOGIC
 ----------------------------------------------------
 local function getClosestPlayerInFOV()
 	local closestPlayer = nil
@@ -442,7 +468,6 @@ local function getClosestPlayerInFOV()
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
 			if isSameTeam(player) then continue end
 			
 			local head = player.Character:FindFirstChild("Head")
@@ -464,31 +489,19 @@ local function getClosestPlayerInFOV()
 end
 
 ----------------------------------------------------
--- 3. DRAWING LOGIC
+-- 6. DRAWING LOGIC
 ----------------------------------------------------
 local R15Joints = {
-	{"Head", "UpperTorso"},
-	{"UpperTorso", "LowerTorso"},
-	{"UpperTorso", "LeftUpperArm"},
-	{"LeftUpperArm", "LeftLowerArm"},
-	{"LeftLowerArm", "LeftHand"},
-	{"UpperTorso", "RightUpperArm"},
-	{"RightUpperArm", "RightLowerArm"},
-	{"RightLowerArm", "RightHand"},
-	{"LowerTorso", "LeftUpperLeg"},
-	{"LeftUpperLeg", "LeftLowerLeg"},
-	{"LeftLowerLeg", "LeftFoot"},
-	{"LowerTorso", "RightUpperLeg"},
-	{"RightUpperLeg", "RightLowerLeg"},
-	{"RightLowerLeg", "RightFoot"}
+	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"},
+	{"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"}, {"UpperTorso", "RightUpperArm"},
+	{"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"}, {"LowerTorso", "LeftUpperLeg"},
+	{"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"},
+	{"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
 }
 
 local R6Joints = {
-	{"Head", "Torso"},
-	{"Torso", "Left Arm"},
-	{"Torso", "Right Arm"},
-	{"Torso", "Left Leg"},
-	{"Torso", "Right Leg"}
+	{"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+	{"Torso", "Left Leg"}, {"Torso", "Right Leg"}
 }
 
 local function createLine(color)
@@ -539,82 +552,74 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP - ⭐ CÓ LOCK AIM + PREDICT AIM + FLY
+-- 7. RENDER LOOP
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
-	
-	-- ⭐ CẬP NHẬT HIỂN THỊ ĐỘ CAO BAY
 	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
 
-	-- ⭐ FLY LOGIC
+	-- FLY LOGIC
 	if Settings.Fly then
-		-- Kiểm tra xem target hiện tại còn sống không
 		if CurrentFlyTarget and CurrentFlyTarget.Character then
 			local targetHumanoid = CurrentFlyTarget.Character:FindFirstChild("Humanoid")
-			if targetHumanoid and targetHumanoid.Health > 0 then
-				-- Target còn sống, fly tới
+			if targetHumanoid and targetHumanoid.Health > 0 and not isSameTeam(CurrentFlyTarget) then
 				flyToTarget(CurrentFlyTarget)
 			else
-				-- Target chết, tìm target mới
 				CurrentFlyTarget = getClosestEnemy()
-				if CurrentFlyTarget then
-					flyToTarget(CurrentFlyTarget)
-				end
+				if CurrentFlyTarget then flyToTarget(CurrentFlyTarget) end
 			end
 		else
-			-- Không có target, tìm target mới
 			CurrentFlyTarget = getClosestEnemy()
-			if CurrentFlyTarget then
-				flyToTarget(CurrentFlyTarget)
-			end
+			if CurrentFlyTarget then flyToTarget(CurrentFlyTarget) end
 		end
 	end
 
-	-- ⭐ AIMBOT LOGIC (LOCK AIM + SMOOTH AIM + PREDICT)
+	-- AIMBOT LOGIC
 	if Settings.Aimbot then
 		local targetHead = getClosestPlayerInFOV()
 		if targetHead then
 			local targetPos = targetHead.Position
 			
-			-- ⭐ DỰ ĐOÁN CHUYỂN ĐỘNG NẾU BẬT
 			if Settings.PredictAim and targetHead.Parent:FindFirstChild("Humanoid") then
 				local targetVel = targetHead.AssemblyLinearVelocity
-				targetPos = targetPos + (targetVel * 0.15)  -- Dự đoán 0.15 giây
+				targetPos = targetPos + (targetVel * 0.15)
 			end
 			
 			local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
 			
-			-- ⭐ LOCK AIM CHẶT HOẶC SMOOTH AIM
 			if Settings.LockAim then
-				-- Khóa trực tiếp, không mượt
 				Camera.CFrame = targetCFrame
 			else
-				-- Aim mượt mà bình thường
 				Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
 			end
 		end
 	end
 
-	-- ⭐ AIM SILENT LOGIC (LẶNG LẼ, CÓ WALL CHECK)
+	-- AIM SILENT LOGIC
 	if Settings.AimSilent then
 		local targetPlayer = getAimSilentTarget()
 		if targetPlayer then
-			LastAimSilentTarget = targetPlayer
 			aimSilent(targetPlayer)
-		else
-			LastAimSilentTarget = nil
 		end
 	end
 
+	-- ESP RENDER
 	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0)
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
-			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
-			if isSameTeam(player) then continue end
+			local objs = DrawObjects[player]
 			
-			local objs = getPlayerDrawings(player)
+			if isSameTeam(player) then
+				if objs then
+					for _, line in pairs(objs.BoxLines) do line.Visible = false end
+					objs.TopLine.Visible = false
+					for _, line in ipairs(objs.Skeleton) do line.Visible = false end
+				end
+				continue
+			end
+			
+			objs = getPlayerDrawings(player)
 			local char = player.Character
 			local humanoid = char and char:FindFirstChild("Humanoid")
 			local head = char and char:FindFirstChild("Head")
@@ -624,15 +629,11 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 				for _, part in ipairs(char:GetChildren()) do
 					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
 						local bottomPartY = part.Position.Y - (part.Size.Y / 2)
-						if bottomPartY < lowestY then
-							lowestY = bottomPartY
-						end
+						if bottomPartY < lowestY then lowestY = bottomPartY end
 					end
 				end
 
-				if lowestY == head.Position.Y then
-					lowestY = head.Position.Y - 4.5
-				end
+				if lowestY == head.Position.Y then lowestY = head.Position.Y - 4.5 end
 
 				local headTopWorld = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.3, 0)
 				local feetBottomWorld = Vector3.new(head.Position.X, lowestY, head.Position.Z)
@@ -647,7 +648,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 					local bottomY = math.max(head2D.Y, feet2D.Y)
 					local centerX = head2D.X
 
-					-- 1. BOX 2D
 					if Settings.ESP then
 						local topLeft = Vector2.new(centerX - width / 2, topY)
 						local topRight = Vector2.new(centerX + width / 2, topY)
@@ -673,7 +673,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
-					-- 2. LINE ĐỈNH
 					if Settings.Lines then
 						objs.TopLine.From = topScreenPos
 						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
@@ -682,7 +681,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						objs.TopLine.Visible = false
 					end
 
-					-- 3. SKELETON
 					if Settings.Skeleton then
 						local isR15 = char:FindFirstChild("UpperTorso") ~= nil
 						local joints = isR15 and R15Joints or R6Joints
@@ -729,12 +727,10 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 end))
 
 ----------------------------------------------------
--- 5. HEALTH & NAME UI
+-- 8. HEALTH & NAME UI
 ----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
-	-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
-	if isSameTeam(player) then return end
 
 	local function characterAdded(char)
 		local hrp = char:WaitForChild("HumanoidRootPart", 10)
@@ -747,7 +743,7 @@ local function applyESP(player)
 		billboard.Size = UDim2.new(0, 200, 0, 50)
 		billboard.StudsOffset = Vector3.new(0, 3.5, 0)
 		billboard.AlwaysOnTop = true
-		billboard.Enabled = Settings.Health
+		billboard.Enabled = Settings.Health and not isSameTeam(player)
 
 		local label = billboard:FindFirstChild("TextLabel") or Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
@@ -760,6 +756,10 @@ local function applyESP(player)
 		billboard.Parent = hrp
 
 		local function updateHP()
+			if isSameTeam(player) then
+				billboard.Enabled = false
+				return
+			end
 			billboard.Enabled = Settings.Health
 			if humanoid and humanoid.Health > 0 then
 				local hp = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
@@ -780,8 +780,4 @@ end
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 
-----------------------------------------------------
--- END OF SCRIPT
-----------------------------------------------------
-print("✅ DELTA ESP PRO LOADED! Nhấn MENU để bật các chức năng")
-print("🔫 Aim Silent + Wall Check đã bật!")
+print("✅ DELTA ESP & COMBAT ULTRA LOADED - SCROLL MENU READY!")

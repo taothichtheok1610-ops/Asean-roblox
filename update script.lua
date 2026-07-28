@@ -45,9 +45,12 @@ local Settings = {
 	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
 	WallCheck = false,
 	TeamCheck = true,       -- 👥 TEAM CHECK (MẶC ĐỊNH BẬT)
+	Fly = false,            -- ✈️ FLY THEO PLAYER (MẶC ĐỊNH TẮT)
 	FOVSize = 120,
 	Smoothness = 0.25,
 }
+
+local CurrentFlyTarget = nil  -- ⭐ LƯU TARGET ĐANG FLY
 
 ----------------------------------------------------
 -- 1. CLEANUP UI CŨ & MENU GUI
@@ -109,7 +112,7 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 240, 0, 450)  -- ⭐ TĂNG CHIỀU CAO CHO THÊM BUTTON
+menuFrame.Size = UDim2.new(0, 240, 0, 480)  -- ⭐ TĂNG CHIỀU CAO CHO THÊM BUTTON
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -247,6 +250,7 @@ createToggle("Aimbot", "🎯 Aimbot Mượt")
 createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
 createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
 createToggle("TeamCheck", "👥 Kiểm Tra Team")  -- ⭐ TEAM CHECK
+createToggle("Fly", "✈️ Fly Theo Player")     -- ⭐ FLY
 createToggle("WallCheck", "🚫 Wall Check")
 
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
@@ -268,6 +272,51 @@ local function isSameTeam(player)
 	
 	-- Kiểm tra có phải cùng team không
 	return playerTeam == localPlayerTeam
+end
+
+----------------------------------------------------
+-- 2.5 FLY LOGIC
+----------------------------------------------------
+local function getClosestEnemy()
+	local closestEnemy = nil
+	local closestDistance = math.huge
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			-- ⭐ KIỂM TRA TEAM
+			if isSameTeam(player) then continue end
+			
+			local head = player.Character:FindFirstChild("Head")
+			local humanoid = player.Character:FindFirstChild("Humanoid")
+			
+			if head and humanoid and humanoid.Health > 0 then
+				local distance = (head.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+				if distance < closestDistance then
+					closestDistance = distance
+					closestEnemy = player
+				end
+			end
+		end
+	end
+	
+	return closestEnemy
+end
+
+local function flyToTarget(targetPlayer)
+	if not targetPlayer or not targetPlayer.Character then return end
+	
+	local targetHead = targetPlayer.Character:FindFirstChild("Head")
+	if not targetHead then return end
+	
+	local myChar = LocalPlayer.Character
+	if not myChar then return end
+	
+	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return end
+	
+	-- ⭐ FLY LÊN TRÊN ĐẦU PLAYER (CAO 5 STUDS)
+	local flyPos = targetHead.Position + Vector3.new(0, 5, 0)
+	myHRP.CFrame = CFrame.new(flyPos)
 end
 
 ----------------------------------------------------
@@ -391,10 +440,34 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP - ⭐ CÓ LOCK AIM + PREDICT AIM
+-- 4. RENDER LOOP - ⭐ CÓ LOCK AIM + PREDICT AIM + FLY
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
+
+	-- ⭐ FLY LOGIC
+	if Settings.Fly then
+		-- Kiểm tra xem target hiện tại còn sống không
+		if CurrentFlyTarget and CurrentFlyTarget.Character then
+			local targetHumanoid = CurrentFlyTarget.Character:FindFirstChild("Humanoid")
+			if targetHumanoid and targetHumanoid.Health > 0 then
+				-- Target còn sống, fly tới
+				flyToTarget(CurrentFlyTarget)
+			else
+				-- Target chết, tìm target mới
+				CurrentFlyTarget = getClosestEnemy()
+				if CurrentFlyTarget then
+					flyToTarget(CurrentFlyTarget)
+				end
+			end
+		else
+			-- Không có target, tìm target mới
+			CurrentFlyTarget = getClosestEnemy()
+			if CurrentFlyTarget then
+				flyToTarget(CurrentFlyTarget)
+			end
+		end
+	end
 
 	-- ⭐ AIMBOT LOGIC (LOCK AIM + SMOOTH AIM + PREDICT)
 	if Settings.Aimbot then

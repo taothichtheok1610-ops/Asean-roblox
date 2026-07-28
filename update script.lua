@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK (FIX MOVEMENT)
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -585,31 +585,40 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. AUTO CLICK TỐI ƯU (VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT)
+-- 6. AUTO CLICK ĐÃ ĐƯỢC CHỐNG ĐƠ DI CHUYỂN (ÉP HUMANOID)
 ----------------------------------------------------
 task.spawn(function()
 	while true do
 		if Settings.AutoClick then
 			pcall(function()
 				local char = LocalPlayer.Character
-				if char and char:FindFirstChildOfClass("Humanoid") then
-					local tool = char:FindFirstChildOfClass("Tool")
+				if char then
+					local humanoid = char:FindFirstChildOfClass("Humanoid")
+					if humanoid then
+						-- Ép trạng thái di chuyển của nhân vật luôn mở
+						humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+						humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+					end
 					
-					-- Ưu tiên 1: Dùng Activate() của Tool (Đảm bảo vừa đánh vừa di chuyển mượt)
+					local tool = char:FindFirstChildOfClass("Tool")
 					if tool then
-						tool:Activate()
+						-- Gọi hàm chém không làm gián đoạn luồng chính
+						coroutine.wrap(function()
+							tool:Activate()
+						end)()
 					else
-						-- Ưu tiên 2: Giả lập nhấp nhả chuột có độ trễ cực ngắn tránh khựng nhân vật
-						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-						task.wait(0.02)
-						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+						-- Bấm nhấp nhả chuột theo luồng riêng
+						coroutine.wrap(function()
+							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+							task.wait(0.01)
+							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+						end)()
 					end
 				end
 			end)
 		end
 		
-		-- Tần suất bấm tối thiểu là 0.05s (50ms) để nhân vật không bị khựng di chuyển
-		local delayTime = math.max(Settings.ClickInterval / 1000, 0.05)
+		local delayTime = math.max(Settings.ClickInterval / 1000, 0.08)
 		task.wait(delayTime)
 	end
 end)
@@ -851,5 +860,3 @@ end
 
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
-
-print("✅ ĐÃ CẬP NHẬT AUTO CLICK VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT MA!")

@@ -1,69 +1,122 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM - HOÀN CHỈNH
--- Tất cả mặc định là OFF (Tắt)
+-- DELTA X: BLUE LOCK CONTROLL BALL & TELEPORT BALL PROJECT
+-- Version: Advanced Physics Control
 
-if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
+if _G.BlueLock_Cleanup then pcall(_G.BlueLock_Cleanup) end
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-local ScriptConnections = {}
-local DrawObjects = {}
+local Connections = {}
+local ControllingBall = false
+local CurrentBall = nil
 
-_G.Delta_Cleanup = function()
-	for _, conn in ipairs(ScriptConnections) do
+_G.BlueLock_Cleanup = function()
+	for _, conn in ipairs(Connections) do
 		if conn and conn.Disconnect then pcall(function() conn:Disconnect() end) end
 	end
-	ScriptConnections = {}
+	Connections = {}
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+		Camera.CameraSubject = LocalPlayer.Character.Humanoid
+	end
+end
 
-	for _, obj in pairs(DrawObjects) do
-		if type(obj) == "table" then
-			if obj.BoxLines then
-				for _, line in pairs(obj.BoxLines) do if line.Remove then line:Remove() end end
-			end
-			if obj.TopLine then obj.TopLine:Remove() end
-			if obj.Skeleton then
-				for _, line in pairs(obj.Skeleton) do if line.Remove then line:Remove() end end
+-- CẤU HÌNH TÍNH NĂNG
+local Config = {
+	ControlBall = false,
+	BallSpeed = 100, -- Tốc độ bay của bóng
+	TeleportKey = Enum.KeyCode.E,
+}
+
+----------------------------------------------------
+-- 1. HÀM TÌM QUẢ BÓNG (BALL FINDER)
+----------------------------------------------------
+local function GetBall()
+	if CurrentBall and CurrentBall.Parent and CurrentBall:IsA("BasePart") then
+		return CurrentBall
+	end
+	
+	-- Tìm các Object tên "Football", "SoccerBall", "Ball" trong Workspace
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") and (obj.Name == "Ball" or obj.Name == "Football" or obj.Name == "SoccerBall" or obj.Name:find("Ball")) then
+			if not obj:IsDescendantOf(LocalPlayer.Character) then
+				CurrentBall = obj
+				return obj
 			end
 		end
 	end
-	DrawObjects = {}
+	return nil
 end
 
--- ⭐ TOÀN BỘ SETTING MẶC ĐỊNH LÀ FALSE (OFF)
-local Settings = {
-	ESP = false,
-	Health = false,
-	Lines = false,
-	Skeleton = false,
-	Aimbot = false,
-	LockAim = false,        -- 🔒 LOCK AIM CHẶT
-	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
-	AimSilent = false,      -- 🔫 AIM SILENT (BẮN LẶNG LẼ)
-	WallCheck = false,
-	TeamCheck = false,      -- 👥 TEAM CHECK (TẮT - FIX LỖI)
-	Fly = false,            -- ✈️ FLY THEO PLAYER (MẶC ĐỊNH TẮT)
-	KillAura = false,       -- ⚔️ KILL AURA (BẮN TẤY XA)
-	FOVSize = 120,
-	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY (MẶC ĐỊNH 5)
-	AuraRange = 50,         -- ⚔️ BÁN KÍNH KILL AURA (MẶC ĐỊNH 50)
-	Smoothness = 0.25,
-}
+----------------------------------------------------
+-- 2. ĐIỀU KHIỂN BÓNG BẰNG CAMERA (CONTROL BALL LOGIC)
+----------------------------------------------------
+local function StopBallControl()
+	ControllingBall = false
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+		Camera.CameraSubject = LocalPlayer.Character.Humanoid
+	end
+end
 
-local CurrentFlyTarget = nil  -- ⭐ LƯU TARGET ĐANG FLY
-local LastAimSilentTarget = nil  -- ⭐ LƯU TARGET AIM SILENT
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+	if not Config.ControlBall then 
+		if ControllingBall then StopBallControl() end
+		return 
+	end
+
+	local ball = GetBall()
+	if not ball then return end
+
+	-- Kiểm tra nếu người chơi chạm hoặc ở gần bóng/đá bóng
+	local char = LocalPlayer.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		local dist = (char.HumanoidRootPart.Position - ball.Position).Magnitude
+		
+		-- Nếu bóng đang di chuyển nhanh hoặc người chơi ở gần
+		if dist < 12 or ball.AssemblyLinearVelocity.Magnitude > 5 then
+			ControllingBall = true
+		end
+	end
+
+	if ControllingBall then
+		-- Chuyển góc nhìn Camera sang quả bóng
+		Camera.CameraSubject = ball
+
+		-- Điều hướng vận tốc quả bóng theo góc nhìn Camera (LookVector)
+		local lookDirection = Camera.CFrame.LookVector
+		ball.AssemblyLinearVelocity = lookDirection * Config.BallSpeed
+
+		-- Tắt điều khiển nếu bóng dừng hẳn
+		if ball.AssemblyLinearVelocity.Magnitude < 2 and (char and (char.HumanoidRootPart.Position - ball.Position).Magnitude > 20) then
+			StopBallControl()
+		end
+	end
+end))
 
 ----------------------------------------------------
--- 1. CLEANUP UI CŨ & MENU GUI
+-- 3. DỊCH CHUYỂN ĐẾN BÓNG (TELEPORT BALL)
+----------------------------------------------------
+local function TeleportToBall()
+	local ball = GetBall()
+	local char = LocalPlayer.Character
+	if ball and char and char:FindFirstChild("HumanoidRootPart") then
+		-- Dịch chuyển nhân vật đến phía sau quả bóng 3 studs
+		char.HumanoidRootPart.CFrame = ball.CFrame * CFrame.new(0, 3, 2)
+	end
+end
+
+----------------------------------------------------
+-- 4. GIAO DIỆN MENU (GUI)
 ----------------------------------------------------
 local function wipeOldUI(folder)
 	if not folder then return end
 	for _, child in ipairs(folder:GetChildren()) do
-		if child.Name:find("Delta_UI") then child:Destroy() end
+		if child.Name:find("BlueLock_UI") then child:Destroy() end
 	end
 end
 
@@ -75,833 +128,154 @@ local parentContainer = LocalPlayer:WaitForChild("PlayerGui")
 if gethui then parentContainer = gethui() elseif CoreGui:FindFirstChild("RobloxGui") then parentContainer = CoreGui end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Delta_UI_" .. math.random(1000, 9999)
+screenGui.Name = "BlueLock_UI_" .. math.random(1000, 9999)
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
 
--- FOV Circle
-local fovFrame = Instance.new("Frame")
-fovFrame.Name = "FOVCircle"
-fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-fovFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
-fovFrame.BackgroundTransparency = 1
-fovFrame.Visible = false
-fovFrame.Parent = screenGui
+-- Frame Menu Chinh
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainMenu"
+mainFrame.Size = UDim2.new(0, 230, 0, 260)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+mainFrame.Active = true
+mainFrame.Parent = screenGui
 
-local fovCorner = Instance.new("UICorner")
-fovCorner.CornerRadius = UDim.new(1, 0)
-fovCorner.Parent = fovFrame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
 
-local fovStroke = Instance.new("UIStroke")
-fovStroke.Color = Color3.fromRGB(0, 255, 255)
-fovStroke.Thickness = 1.5
-fovStroke.Parent = fovFrame
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(59, 130, 246)
+stroke.Thickness = 2
+stroke.Parent = mainFrame
 
--- Menu Toggle Button
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Name = "Toggle"
-toggleBtn.Size = UDim2.new(0, 50, 0, 50)
-toggleBtn.Position = UDim2.new(0.02, 0, 0.35, 0)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.Text = "MENU"
-toggleBtn.Font = Enum.Font.SourceSansBold
-toggleBtn.TextSize = 14
-toggleBtn.Parent = screenGui
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "BLUE LOCK: BALL CONTROL"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 14
+title.Parent = mainFrame
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(1, 0)
-btnCorner.Parent = toggleBtn
+-- Container
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, -20, 1, -45)
+container.Position = UDim2.new(0, 10, 0, 38)
+container.BackgroundTransparency = 1
+container.Parent = mainFrame
 
-local menuFrame = Instance.new("Frame")
-menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 240, 0, 600)  -- ⭐ TĂNG CHIỀU CAO CHO KILL AURA
-menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
-menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-menuFrame.BackgroundTransparency = 0.1
-menuFrame.Visible = false
-menuFrame.Active = true
-menuFrame.Parent = screenGui
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 8)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.Parent = container
 
-local menuCorner = Instance.new("UICorner")
-menuCorner.CornerRadius = UDim.new(0, 10)
-menuCorner.Parent = menuFrame
+-- Toggle Control Ball
+local btnControl = Instance.new("TextButton")
+btnControl.Size = UDim2.new(1, 0, 0, 32)
+btnControl.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+btnControl.Text = "Control Ball: OFF"
+btnControl.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnControl.Font = Enum.Font.SourceSansBold
+btnControl.TextSize = 12
+btnControl.Parent = container
 
+local btnControlCorner = Instance.new("UICorner")
+btnControlCorner.CornerRadius = UDim.new(0, 6)
+btnControlCorner.Parent = btnControl
+
+table.insert(Connections, btnControl.MouseButton1Click:Connect(function()
+	Config.ControlBall = not Config.ControlBall
+	if Config.ControlBall then
+		btnControl.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
+		btnControl.Text = "Control Ball: ON"
+	else
+		btnControl.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+		btnControl.Text = "Control Ball: OFF"
+		StopBallControl()
+	end
+end))
+
+-- Teleport Ball Button
+local btnTeleport = Instance.new("TextButton")
+btnTeleport.Size = UDim2.new(1, 0, 0, 32)
+btnTeleport.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+btnTeleport.Text = "Teleport To Ball"
+btnTeleport.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnTeleport.Font = Enum.Font.SourceSansBold
+btnTeleport.TextSize = 12
+btnTeleport.Parent = container
+
+local btnTeleCorner = Instance.new("UICorner")
+btnTeleCorner.CornerRadius = UDim.new(0, 6)
+btnTeleCorner.Parent = btnTeleport
+
+table.insert(Connections, btnTeleport.MouseButton1Click:Connect(function()
+	TeleportToBall()
+end))
+
+-- Chỉnh Tốc độ Bóng (Speed Adjuster)
+local speedFrame = Instance.new("Frame")
+speedFrame.Size = UDim2.new(1, 0, 0, 50)
+speedFrame.BackgroundTransparency = 1
+speedFrame.Parent = container
+
+local lblSpeed = Instance.new("TextLabel")
+lblSpeed.Size = UDim2.new(1, 0, 0, 20)
+lblSpeed.BackgroundTransparency = 1
+lblSpeed.Text = "Ball Speed: " .. Config.BallSpeed
+lblSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+lblSpeed.Font = Enum.Font.SourceSansBold
+lblSpeed.TextSize = 12
+lblSpeed.Parent = speedFrame
+
+local btnMinusSpeed = Instance.new("TextButton")
+btnMinusSpeed.Size = UDim2.new(0.48, 0, 0, 25)
+btnMinusSpeed.Position = UDim2.new(0, 0, 0, 22)
+btnMinusSpeed.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
+btnMinusSpeed.Text = "-20 Speed"
+btnMinusSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnMinusSpeed.Font = Enum.Font.SourceSansBold
+btnMinusSpeed.Parent = speedFrame
+
+local btnPlusSpeed = Instance.new("TextButton")
+btnPlusSpeed.Size = UDim2.new(0.48, 0, 0, 25)
+btnPlusSpeed.Position = UDim2.new(0.52, 0, 0, 22)
+btnPlusSpeed.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
+btnPlusSpeed.Text = "+20 Speed"
+btnPlusSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnPlusSpeed.Font = Enum.Font.SourceSansBold
+btnPlusSpeed.Parent = speedFrame
+
+btnMinusSpeed.MouseButton1Click:Connect(function()
+	Config.BallSpeed = math.max(20, Config.BallSpeed - 20)
+	lblSpeed.Text = "Ball Speed: " .. Config.BallSpeed
+end)
+
+btnPlusSpeed.MouseButton1Click:Connect(function()
+	Config.BallSpeed = math.min(300, Config.BallSpeed + 20)
+	lblSpeed.Text = "Ball Speed: " .. Config.BallSpeed
+end)
+
+-- Drag Menu System
 local dragging, dragStart, startPos
-table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
+table.insert(Connections, mainFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
 		dragStart = input.Position
-		startPos = menuFrame.Position
+		startPos = mainFrame.Position
 		input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then dragging = false end
 		end)
 	end
 end))
 
-table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
+table.insert(Connections, UserInputService.InputChanged:Connect(function(input)
 	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
 		local delta = input.Position - dragStart
-		menuFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end))
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundTransparency = 1
-title.Text = "⭐ DELTA ESP PRO"
-title.TextColor3 = Color3.fromRGB(255, 215, 0)
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 13
-title.Parent = menuFrame
-
-local container = Instance.new("Frame")
-container.Size = UDim2.new(1, -20, 1, -40)
-container.Position = UDim2.new(0, 10, 0, 30)
-container.BackgroundTransparency = 1
-container.Parent = menuFrame
-
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 4)
-listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-listLayout.Parent = container
-
-local function updateHealthUIState()
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer and plr.Character then
-			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local gui = hrp:FindFirstChild("ESP_HealthUI")
-				if gui then
-					gui.Enabled = Settings.Health
-				end
-			end
-		end
-	end
-end
-
-local function createToggle(name, text)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 26)
-	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 11
-	btn.Parent = container
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 5)
-	corner.Parent = btn
-
-	local function update()
-		if Settings[name] then
-			btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-			btn.Text = text .. ": ✓ ON"
-		else
-			btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-			btn.Text = text .. ": ✗ OFF"
-		end
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		if name == "Health" then
-			updateHealthUIState()
-		end
-	end
-	update()
-
-	table.insert(ScriptConnections, btn.MouseButton1Click:Connect(function()
-		Settings[name] = not Settings[name]
-		update()
-	end))
-end
-
-local fovControl = Instance.new("Frame")
-fovControl.Size = UDim2.new(1, 0, 0, 26)
-fovControl.BackgroundTransparency = 1
-fovControl.Parent = container
-
-local btnMinus = Instance.new("TextButton")
-btnMinus.Size = UDim2.new(0.48, 0, 1, 0)
-btnMinus.Text = "- FOV"
-btnMinus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-btnMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnMinus.Font = Enum.Font.SourceSansBold
-btnMinus.Parent = fovControl
-
-local btnPlus = Instance.new("TextButton")
-btnPlus.Size = UDim2.new(0.48, 0, 1, 0)
-btnPlus.Position = UDim2.new(0.52, 0, 0, 0)
-btnPlus.Text = "+ FOV"
-btnPlus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-btnPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnPlus.Font = Enum.Font.SourceSansBold
-btnPlus.Parent = fovControl
-
-btnMinus.MouseButton1Click:Connect(function()
-	Settings.FOVSize = math.max(40, Settings.FOVSize - 20)
-	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
-end)
-
-btnPlus.MouseButton1Click:Connect(function()
-	Settings.FOVSize = math.min(400, Settings.FOVSize + 20)
-	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
-end)
-
--- ⭐ HIỂN THỊ THÔNG TIN FLY
-local flyInfoLabel = Instance.new("TextLabel")
-flyInfoLabel.Size = UDim2.new(1, 0, 0, 20)
-flyInfoLabel.BackgroundTransparency = 1
-flyInfoLabel.Text = "Độ Cao Bay: 5"
-flyInfoLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-flyInfoLabel.Font = Enum.Font.SourceSansBold
-flyInfoLabel.TextSize = 12
-flyInfoLabel.Parent = container
-
--- ⭐ FLY HEIGHT CONTROL
-local flyHeightControl = Instance.new("Frame")
-flyHeightControl.Size = UDim2.new(1, 0, 0, 26)
-flyHeightControl.BackgroundTransparency = 1
-flyHeightControl.Parent = container
-
-local btnFlyDown = Instance.new("TextButton")
-btnFlyDown.Size = UDim2.new(0.48, 0, 1, 0)
-btnFlyDown.Text = "- Cao"
-btnFlyDown.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
-btnFlyDown.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlyDown.Font = Enum.Font.SourceSansBold
-btnFlyDown.Parent = flyHeightControl
-
-local btnFlyUp = Instance.new("TextButton")
-btnFlyUp.Size = UDim2.new(0.48, 0, 1, 0)
-btnFlyUp.Position = UDim2.new(0.52, 0, 0, 0)
-btnFlyUp.Text = "+ Cao"
-btnFlyUp.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
-btnFlyUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlyUp.Font = Enum.Font.SourceSansBold
-btnFlyUp.Parent = flyHeightControl
-
-btnFlyDown.MouseButton1Click:Connect(function()
-	Settings.FlyHeight = math.max(1, Settings.FlyHeight - 1)
-end)
-
-btnFlyUp.MouseButton1Click:Connect(function()
-	Settings.FlyHeight = math.min(20, Settings.FlyHeight + 1)
-end)
-
--- ⭐ AURA RANGE CONTROL
-local auraRangeControl = Instance.new("Frame")
-auraRangeControl.Size = UDim2.new(1, 0, 0, 26)
-auraRangeControl.BackgroundTransparency = 1
-auraRangeControl.Parent = container
-
-local btnAuraDown = Instance.new("TextButton")
-btnAuraDown.Size = UDim2.new(0.48, 0, 1, 0)
-btnAuraDown.Text = "- Bán K"
-btnAuraDown.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-btnAuraDown.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnAuraDown.Font = Enum.Font.SourceSansBold
-btnAuraDown.Parent = auraRangeControl
-
-local btnAuraUp = Instance.new("TextButton")
-btnAuraUp.Size = UDim2.new(0.48, 0, 1, 0)
-btnAuraUp.Position = UDim2.new(0.52, 0, 0, 0)
-btnAuraUp.Text = "+ Bán K"
-btnAuraUp.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-btnAuraUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnAuraUp.Font = Enum.Font.SourceSansBold
-btnAuraUp.Parent = auraRangeControl
-
-btnAuraDown.MouseButton1Click:Connect(function()
-	Settings.AuraRange = math.max(10, Settings.AuraRange - 5)
-end)
-
-btnAuraUp.MouseButton1Click:Connect(function()
-	Settings.AuraRange = math.min(100, Settings.AuraRange + 5)
-end)
-
--- ⭐ HIỂN THỊ THÔNG TIN AURA
-local auraInfoLabel = Instance.new("TextLabel")
-auraInfoLabel.Size = UDim2.new(1, 0, 0, 20)
-auraInfoLabel.BackgroundTransparency = 1
-auraInfoLabel.Text = "Bán Kính Aura: 50"
-auraInfoLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-auraInfoLabel.Font = Enum.Font.SourceSansBold
-auraInfoLabel.TextSize = 12
-auraInfoLabel.Parent = container
-createToggle("ESP", "📦 Khung Hộp 2D")
-createToggle("Health", "❤️ Hiện Tên & HP")
-createToggle("Lines", "📍 Line Nối Đầu")
-createToggle("Skeleton", "🦴 Skeleton Xương")
-createToggle("Aimbot", "🎯 Aimbot Mượt")
-createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
-createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
-createToggle("AimSilent", "🔫 Aim Silent")     -- ⭐ AIM SILENT
-createToggle("KillAura", "⚔️ Kill Aura (Tấy)")  -- ⭐ KILL AURA
-createToggle("TeamCheck", "👥 Kiểm Tra Team (BỎ)")  -- ⭐ TẮT
-createToggle("Fly", "✈️ Fly Theo Player")     -- ⭐ FLY
-createToggle("WallCheck", "🚫 Wall Check")
-
-table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
-	menuFrame.Visible = not menuFrame.Visible
-end))
-
-----------------------------------------------------
--- 2. TEAM CHECK LOGIC (ĐANG TẮT - CÓ LỖI)
-----------------------------------------------------
-local function isSameTeam(player)
-	-- ⭐ TẮT HOÀN TOÀN - CÓ LỖI VỚI TEAM CHECK
-	return false
-	
-	-- CODE CŨ (TẮT):
-	--[[
-	if not Settings.TeamCheck then return false end
-	if not player or not LocalPlayer then return false end
-	
-	local playerTeam = player.Team
-	local localPlayerTeam = LocalPlayer.Team
-	
-	if not playerTeam or not localPlayerTeam then return false end
-	return playerTeam == localPlayerTeam
-	--]]
-end
-
-----------------------------------------------------
--- 2.5 FLY LOGIC
-----------------------------------------------------
-local function getClosestEnemy()
-	local closestEnemy = nil
-	local closestDistance = math.huge
-	
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM
-			if isSameTeam(player) then continue end
-			
-			local head = player.Character:FindFirstChild("Head")
-			local humanoid = player.Character:FindFirstChild("Humanoid")
-			
-			if head and humanoid and humanoid.Health > 0 then
-				local distance = (head.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-				if distance < closestDistance then
-					closestDistance = distance
-					closestEnemy = player
-				end
-			end
-		end
-	end
-	
-	return closestEnemy
-end
-
-local function flyToTarget(targetPlayer)
-	if not targetPlayer or not targetPlayer.Character then return end
-	
-	local targetHead = targetPlayer.Character:FindFirstChild("Head")
-	if not targetHead then return end
-	
-	local myChar = LocalPlayer.Character
-	if not myChar then return end
-	
-	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-	if not myHRP then return end
-	
-	-- ⭐ FLY LÊN TRÊN ĐẦU PLAYER (THEO ĐỘ CAO TỪ SETTING)
-	local flyPos = targetHead.Position + Vector3.new(0, Settings.FlyHeight, 0)
-	myHRP.CFrame = CFrame.new(flyPos)
-end
-
-----------------------------------------------------
--- 2.6 WALL CHECK LOGIC (ISVISIBLE)
-----------------------------------------------------
-local function isVisible(targetPart)
-	if not Settings.WallCheck then return true end
-	local origin = Camera.CFrame.Position
-	local destination = targetPart.Position
-	local direction = (destination - origin)
-
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
-
-	local result = Workspace:Raycast(origin, direction, raycastParams)
-	return result == nil
-end
-
-----------------------------------------------------
--- 2.7 AIM SILENT LOGIC
-----------------------------------------------------
-local function getAimSilentTarget()
-	local closestPlayer = nil
-	local shortestDistance = Settings.FOVSize
-	local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM
-			if isSameTeam(player) then continue end
-			
-			local head = player.Character:FindFirstChild("Head")
-			local humanoid = player.Character:FindFirstChild("Humanoid")
-
-			if head and humanoid and humanoid.Health > 0 then
-				-- ⭐ KIỂM TRA WALL CHECK
-				if not isVisible(head) then continue end
-				
-				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-				if onScreen then
-					local distance = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
-					if distance < shortestDistance then
-						shortestDistance = distance
-						closestPlayer = player
-					end
-				end
-			end
-		end
-	end
-	return closestPlayer
-end
-
-local function aimSilent(targetPlayer)
-	if not targetPlayer or not targetPlayer.Character then return end
-	
-	local targetHead = targetPlayer.Character:FindFirstChild("Head")
-	if not targetHead then return end
-	
-	local myChar = LocalPlayer.Character
-	if not myChar then return end
-	
-	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-	if not myHRP then return end
-	
-	-- ⭐ ĐIỀU CHỈNH AIM VỀ ĐẦU ENEMY (LẶNG LẼ)
-	local targetCFrame = CFrame.new(myHRP.Position, targetHead.Position)
-	myHRP.CFrame = targetCFrame
-end
-
-----------------------------------------------------
--- 2.7 KILL AURA LOGIC (BẮN TẤY XA XUYÊN TƯỜNG)
-----------------------------------------------------
-local function getAllEnemiesInAura()
-	local enemies = {}
-	local myChar = LocalPlayer.Character
-	if not myChar then return enemies end
-	
-	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-	if not myHRP then return enemies end
-	
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			local targetHead = player.Character:FindFirstChild("Head")
-			local humanoid = player.Character:FindFirstChild("Humanoid")
-			
-			if targetHead and humanoid and humanoid.Health > 0 then
-				-- ⭐ KIỂM TRA KHOẢNG CÁCH (BÁN KÍNH AURA)
-				local distance = (targetHead.Position - myHRP.Position).Magnitude
-				if distance <= Settings.AuraRange then
-					table.insert(enemies, player)
-				end
-			end
-		end
-	end
-	
-	return enemies
-end
-
-local function killAuraShoot()
-	if not Settings.KillAura then return end
-	
-	local myChar = LocalPlayer.Character
-	if not myChar then return end
-	
-	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-	if not myHRP then return end
-	
-	-- ⭐ LẤY TẤT CẢ ENEMY TRONG AURA
-	local enemies = getAllEnemiesInAura()
-	
-	for _, enemy in ipairs(enemies) do
-		if enemy and enemy.Character then
-			local targetHead = enemy.Character:FindFirstChild("Head")
-			local humanoid = enemy.Character:FindFirstChild("Humanoid")
-			
-			if targetHead and humanoid and humanoid.Health > 0 then
-				-- ⭐ BẮN XUYÊN TƯỜNG (KHÔNG CẦN RAYCAST)
-				-- TÌM REMOTE EVENT VÀ GỬI DAMAGE
-				local attackRemote = myChar:FindFirstChild("RemoteEvent") 
-					or myChar:FindFirstChildOfClass("RemoteEvent")
-				
-				if attackRemote then
-					pcall(function()
-						attackRemote:FireServer(targetHead)
-					end)
-				else
-					-- ⭐ FALLBACK: DAMAGE TRỰC TIẾP
-					if humanoid then
-						humanoid:TakeDamage(25)
-					end
-				end
-			end
-		end
-	end
-end
-
-----------------------------------------------------
--- 3. AIMBOT LOGIC
-----------------------------------------------------
-local function getClosestPlayerInFOV()
-	local closestPlayer = nil
-	local shortestDistance = Settings.FOVSize
-	local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
-			if isSameTeam(player) then continue end
-			
-			local head = player.Character:FindFirstChild("Head")
-			local humanoid = player.Character:FindFirstChild("Humanoid")
-
-			if head and humanoid and humanoid.Health > 0 then
-				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-				if onScreen then
-					local distance = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
-					if distance < shortestDistance and isVisible(head) then
-						shortestDistance = distance
-						closestPlayer = head
-					end
-				end
-			end
-		end
-	end
-	return closestPlayer
-end
-
-----------------------------------------------------
--- 3. DRAWING LOGIC
-----------------------------------------------------
-local R15Joints = {
-	{"Head", "UpperTorso"},
-	{"UpperTorso", "LowerTorso"},
-	{"UpperTorso", "LeftUpperArm"},
-	{"LeftUpperArm", "LeftLowerArm"},
-	{"LeftLowerArm", "LeftHand"},
-	{"UpperTorso", "RightUpperArm"},
-	{"RightUpperArm", "RightLowerArm"},
-	{"RightLowerArm", "RightHand"},
-	{"LowerTorso", "LeftUpperLeg"},
-	{"LeftUpperLeg", "LeftLowerLeg"},
-	{"LeftLowerLeg", "LeftFoot"},
-	{"LowerTorso", "RightUpperLeg"},
-	{"RightUpperLeg", "RightLowerLeg"},
-	{"RightLowerLeg", "RightFoot"}
-}
-
-local R6Joints = {
-	{"Head", "Torso"},
-	{"Torso", "Left Arm"},
-	{"Torso", "Right Arm"},
-	{"Torso", "Left Leg"},
-	{"Torso", "Right Leg"}
-}
-
-local function createLine(color)
-	local line = Drawing.new("Line")
-	line.Thickness = 1.5
-	line.Color = color or Color3.fromRGB(0, 255, 0)
-	line.Transparency = 1
-	line.Visible = false
-	return line
-end
-
-local function getPlayerDrawings(player)
-	if not DrawObjects[player] then
-		local boxLines = {
-			Top = createLine(Color3.fromRGB(0, 255, 0)),
-			Bottom = createLine(Color3.fromRGB(0, 255, 0)),
-			Left = createLine(Color3.fromRGB(0, 255, 0)),
-			Right = createLine(Color3.fromRGB(0, 255, 0))
-		}
-
-		local topLine = createLine(Color3.fromRGB(255, 255, 0))
-
-		local skeleton = {}
-		for i = 1, 15 do
-			table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255)))
-		end
-
-		DrawObjects[player] = {
-			BoxLines = boxLines,
-			TopLine = topLine,
-			Skeleton = skeleton
-		}
-	end
-	return DrawObjects[player]
-end
-
-local function removePlayerDrawings(player)
-	if DrawObjects[player] then
-		if DrawObjects[player].BoxLines then
-			for _, line in pairs(DrawObjects[player].BoxLines) do line:Remove() end
-		end
-		if DrawObjects[player].TopLine then DrawObjects[player].TopLine:Remove() end
-		for _, line in ipairs(DrawObjects[player].Skeleton) do line:Remove() end
-		DrawObjects[player] = nil
-	end
-end
-
-Players.PlayerRemoving:Connect(removePlayerDrawings)
-
-----------------------------------------------------
--- 4. RENDER LOOP - ⭐ CÓ LOCK AIM + PREDICT AIM + FLY
-----------------------------------------------------
-table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
-	fovFrame.Visible = Settings.Aimbot
-	
-	-- ⭐ CẬP NHẬT HIỂN THỊ ĐỘ CAO BAY
-	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
-	
-	-- ⭐ CẬP NHẬT HIỂN THỊ BÁN KÍNH AURA
-	auraInfoLabel.Text = string.format("Bán Kính Aura: %d", Settings.AuraRange)
-
-	-- ⭐ FLY LOGIC
-	if Settings.Fly then
-		-- Kiểm tra xem target hiện tại còn sống không
-		if CurrentFlyTarget and CurrentFlyTarget.Character then
-			local targetHumanoid = CurrentFlyTarget.Character:FindFirstChild("Humanoid")
-			if targetHumanoid and targetHumanoid.Health > 0 then
-				-- Target còn sống, fly tới
-				flyToTarget(CurrentFlyTarget)
-			else
-				-- Target chết, tìm target mới
-				CurrentFlyTarget = getClosestEnemy()
-				if CurrentFlyTarget then
-					flyToTarget(CurrentFlyTarget)
-				end
-			end
-		else
-			-- Không có target, tìm target mới
-			CurrentFlyTarget = getClosestEnemy()
-			if CurrentFlyTarget then
-				flyToTarget(CurrentFlyTarget)
-			end
-		end
-	end
-
-	-- ⭐ AIMBOT LOGIC (LOCK AIM + SMOOTH AIM + PREDICT)
-	if Settings.Aimbot then
-		local targetHead = getClosestPlayerInFOV()
-		if targetHead then
-			local targetPos = targetHead.Position
-			
-			-- ⭐ DỰ ĐOÁN CHUYỂN ĐỘNG NẾU BẬT
-			if Settings.PredictAim and targetHead.Parent:FindFirstChild("Humanoid") then
-				local targetVel = targetHead.AssemblyLinearVelocity
-				targetPos = targetPos + (targetVel * 0.15)  -- Dự đoán 0.15 giây
-			end
-			
-			local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
-			
-			-- ⭐ LOCK AIM CHẶT HOẶC SMOOTH AIM
-			if Settings.LockAim then
-				-- Khóa trực tiếp, không mượt
-				Camera.CFrame = targetCFrame
-			else
-				-- Aim mượt mà bình thường
-				Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
-			end
-		end
-	end
-
-	-- ⭐ AIM SILENT LOGIC (LẶNG LẼ, CÓ WALL CHECK)
-	if Settings.AimSilent then
-		local targetPlayer = getAimSilentTarget()
-		if targetPlayer then
-			LastAimSilentTarget = targetPlayer
-			aimSilent(targetPlayer)
-		else
-			LastAimSilentTarget = nil
-		end
-	end
-
-	-- ⭐ KILL AURA LOGIC (BẮN TẤY XA)
-	killAuraShoot()
-
-	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0)
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			-- ⭐ KIỂM TRA TEAM TẮT - CÓ LỖI (LÚC NÀY LUÔN FALSE)
-			if isSameTeam(player) then continue end
-			
-			local objs = getPlayerDrawings(player)
-			local char = player.Character
-			local humanoid = char and char:FindFirstChild("Humanoid")
-			local head = char and char:FindFirstChild("Head")
-
-			if char and humanoid and humanoid.Health > 0 and head then
-				local lowestY = head.Position.Y
-				for _, part in ipairs(char:GetChildren()) do
-					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
-						local bottomPartY = part.Position.Y - (part.Size.Y / 2)
-						if bottomPartY < lowestY then
-							lowestY = bottomPartY
-						end
-					end
-				end
-
-				if lowestY == head.Position.Y then
-					lowestY = head.Position.Y - 4.5
-				end
-
-				local headTopWorld = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.3, 0)
-				local feetBottomWorld = Vector3.new(head.Position.X, lowestY, head.Position.Z)
-
-				local head2D, headVis = Camera:WorldToViewportPoint(headTopWorld)
-				local feet2D, feetVis = Camera:WorldToViewportPoint(feetBottomWorld)
-
-				if headVis or feetVis then
-					local height = math.abs(head2D.Y - feet2D.Y)
-					local width = height * 0.6
-					local topY = math.min(head2D.Y, feet2D.Y)
-					local bottomY = math.max(head2D.Y, feet2D.Y)
-					local centerX = head2D.X
-
-					-- 1. BOX 2D
-					if Settings.ESP then
-						local topLeft = Vector2.new(centerX - width / 2, topY)
-						local topRight = Vector2.new(centerX + width / 2, topY)
-						local bottomLeft = Vector2.new(centerX - width / 2, bottomY)
-						local bottomRight = Vector2.new(centerX + width / 2, bottomY)
-
-						objs.BoxLines.Top.From = topLeft
-						objs.BoxLines.Top.To = topRight
-						objs.BoxLines.Top.Visible = true
-
-						objs.BoxLines.Bottom.From = bottomLeft
-						objs.BoxLines.Bottom.To = bottomRight
-						objs.BoxLines.Bottom.Visible = true
-
-						objs.BoxLines.Left.From = topLeft
-						objs.BoxLines.Left.To = bottomLeft
-						objs.BoxLines.Left.Visible = true
-
-						objs.BoxLines.Right.From = topRight
-						objs.BoxLines.Right.To = bottomRight
-						objs.BoxLines.Right.Visible = true
-					else
-						for _, line in pairs(objs.BoxLines) do line.Visible = false end
-					end
-
-					-- 2. LINE ĐỈNH
-					if Settings.Lines then
-						objs.TopLine.From = topScreenPos
-						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
-						objs.TopLine.Visible = true
-					else
-						objs.TopLine.Visible = false
-					end
-
-					-- 3. SKELETON
-					if Settings.Skeleton then
-						local isR15 = char:FindFirstChild("UpperTorso") ~= nil
-						local joints = isR15 and R15Joints or R6Joints
-
-						for i, joint in ipairs(joints) do
-							local partA = char:FindFirstChild(joint[1])
-							local partB = char:FindFirstChild(joint[2])
-							local line = objs.Skeleton[i]
-
-							if partA and partB and line then
-								local posA, visA = Camera:WorldToViewportPoint(partA.Position)
-								local posB, visB = Camera:WorldToViewportPoint(partB.Position)
-
-								if visA and visB then
-									line.From = Vector2.new(posA.X, posA.Y)
-									line.To = Vector2.new(posB.X, posB.Y)
-									line.Visible = true
-								else
-									line.Visible = false
-								end
-							elseif line then
-								line.Visible = false
-							end
-						end
-
-						for i = #joints + 1, #objs.Skeleton do
-							objs.Skeleton[i].Visible = false
-						end
-					else
-						for _, line in ipairs(objs.Skeleton) do line.Visible = false end
-					end
-				else
-					for _, line in pairs(objs.BoxLines) do line.Visible = false end
-					objs.TopLine.Visible = false
-					for _, line in ipairs(objs.Skeleton) do line.Visible = false end
-				end
-			else
-				for _, line in pairs(objs.BoxLines) do line.Visible = false end
-				objs.TopLine.Visible = false
-				for _, line in ipairs(objs.Skeleton) do line.Visible = false end
-			end
-		end
-	end
-end))
-
-----------------------------------------------------
--- 5. HEALTH & NAME UI
-----------------------------------------------------
-local function applyESP(player)
-	if player == LocalPlayer then return end
-	-- ⭐ KIỂM TRA TEAM TẮT - CÓ LỖI (LÚC NÀY LUÔN FALSE)
-	if isSameTeam(player) then return end
-
-	local function characterAdded(char)
-		local hrp = char:WaitForChild("HumanoidRootPart", 10)
-		local humanoid = char:WaitForChild("Humanoid", 10)
-		if not hrp or not humanoid then return end
-
-		local billboard = hrp:FindFirstChild("ESP_HealthUI") or Instance.new("BillboardGui")
-		billboard.Name = "ESP_HealthUI"
-		billboard.Adornee = hrp
-		billboard.Size = UDim2.new(0, 200, 0, 50)
-		billboard.StudsOffset = Vector3.new(0, 3.5, 0)
-		billboard.AlwaysOnTop = true
-		billboard.Enabled = Settings.Health
-
-		local label = billboard:FindFirstChild("TextLabel") or Instance.new("TextLabel")
-		label.Size = UDim2.new(1, 0, 1, 0)
-		label.BackgroundTransparency = 1
-		label.TextColor3 = Color3.fromRGB(0, 255, 0)
-		label.TextStrokeTransparency = 0
-		label.Font = Enum.Font.SourceSansBold
-		label.TextSize = 14
-		label.Parent = billboard
-		billboard.Parent = hrp
-
-		local function updateHP()
-			billboard.Enabled = Settings.Health
-			if humanoid and humanoid.Health > 0 then
-				local hp = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
-				label.Text = string.format("%s\n[%d%% HP]", player.DisplayName, math.max(0, hp))
-			else
-				label.Text = player.DisplayName .. "\n[DEAD]"
-			end
-		end
-
-		table.insert(ScriptConnections, humanoid.HealthChanged:Connect(updateHP))
-		updateHP()
-	end
-
-	if player.Character then task.spawn(characterAdded, player.Character) end
-	table.insert(ScriptConnections, player.CharacterAdded:Connect(characterAdded))
-end
-
-for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
-table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
-
-----------------------------------------------------
--- END OF SCRIPT
-----------------------------------------------------
-print("✅ DELTA ESP PRO LOADED! Nhấn MENU để bật các chức năng")
-print("🔫 Aim Silent + Wall Check đã bật!")
-print("⚔️ Kill Aura (Tấy xuyên tường) đã sẵn sàng!")
-print("⚠️ Team Check đã TẮT (fix lỗi ESP)")

@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000)
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -47,6 +47,8 @@ local Settings = {
 	Fly = false,            -- ✈️ FLY THEO PLAYER
 	WalkSpeedToggle = false,-- ⚡ BẬT/TẮT WALKSPEED
 	WalkSpeed = 16,         -- ⚡ TỐC ĐỘ BAN ĐẦU
+	AutoClick = false,      -- ⚔️ BẬT/TẮT AUTO CLICK
+	ClickInterval = 100,    -- ⏱️ TỐC ĐỘ ĐÁNH (ms)
 	FOVSize = 120,
 	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY
 	Smoothness = 0.25,
@@ -320,6 +322,45 @@ createSpeedBtn("-10", 0.25, 0.25, -10)
 createSpeedBtn("+10", 0.50, 0.25, 10)
 createSpeedBtn("+100", 0.75, 0.25, 100)
 
+-- Controls: Auto Click (Tốc độ đánh ms)
+createToggle("AutoClick", "⚔️ Auto Click")
+
+local clickInfoLabel = Instance.new("TextLabel")
+clickInfoLabel.Size = UDim2.new(0.95, 0, 0, 20)
+clickInfoLabel.BackgroundTransparency = 1
+clickInfoLabel.Text = "Delay Auto Click: 100ms"
+clickInfoLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+clickInfoLabel.Font = Enum.Font.SourceSansBold
+clickInfoLabel.TextSize = 12
+clickInfoLabel.Parent = scrollContainer
+
+local clickControl = Instance.new("Frame")
+clickControl.Size = UDim2.new(0.95, 0, 0, 26)
+clickControl.BackgroundTransparency = 1
+clickControl.Parent = scrollContainer
+
+local function createClickBtn(text, posScale, sizeScale, amount)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(sizeScale, -2, 1, 0)
+	btn.Position = UDim2.new(posScale, 0, 0, 0)
+	btn.Text = text
+	btn.BackgroundColor3 = Color3.fromRGB(80, 50, 30)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 10
+	btn.Parent = clickControl
+	local cc = Instance.new("UICorner") cc.CornerRadius = UDim.new(0, 4) cc.Parent = btn
+
+	btn.MouseButton1Click:Connect(function()
+		Settings.ClickInterval = math.clamp(Settings.ClickInterval + amount, 10, 2000)
+	end)
+end
+
+createClickBtn("-50ms", 0, 0.25, -50)
+createClickBtn("-10ms", 0.25, 0.25, -10)
+createClickBtn("+10ms", 0.50, 0.25, 10)
+createClickBtn("+50ms", 0.75, 0.25, 50)
+
 -- Nút Toggles Khác
 createToggle("ESP", "📦 Khung Hộp 2D")
 createToggle("Health", "❤️ Hiện Tên & HP")
@@ -538,7 +579,33 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. RENDER & STEPPED LOOP
+-- 6. AUTO CLICK THỦ CÔNG
+----------------------------------------------------
+task.spawn(function()
+	while true do
+		if Settings.AutoClick then
+			pcall(function()
+				local char = LocalPlayer.Character
+				if char then
+					local tool = char:FindFirstChildOfClass("Tool")
+					if tool then
+						tool:Activate()
+					else
+						-- Fallback giả lập Click Chuột Trái màn hình
+						VirtualInputManager = game:GetService("VirtualInputManager")
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.01)
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+					end
+				end
+			end)
+		end
+		task.wait(Settings.ClickInterval / 1000)
+	end
+end)
+
+----------------------------------------------------
+-- 7. RENDER & STEPPED LOOP
 ----------------------------------------------------
 -- WALKSPEED LOOP (Áp dụng liên tục bằng Stepped để không bị override)
 table.insert(ScriptConnections, RunService.Stepped:Connect(function()
@@ -554,6 +621,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
 	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
 	speedInfoLabel.Text = string.format("Tốc Độ WalkSpeed: %d", Settings.WalkSpeed)
+	clickInfoLabel.Text = string.format("Delay Auto Click: %dms", Settings.ClickInterval)
 
 	-- FLY LOGIC
 	if Settings.Fly then
@@ -687,7 +755,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 							local partB = char:FindFirstChild(joint[2])
 							local line = objs.Skeleton[i]
 
-							if partA and partB and line then
+							if partA and partB and line me
 								local posA, visA = Camera:WorldToViewportPoint(partA.Position)
 								local posB, visB = Camera:WorldToViewportPoint(partB.Position)
 
@@ -722,10 +790,10 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 end))
 
 ----------------------------------------------------
--- 7. HEALTH & NAME UI
+-- 8. HEALTH & NAME UI
 ----------------------------------------------------
 local function applyESP(player)
-	if player == LocalPlayer then return end
+	if player == LocalPlayer me return end
 
 	local function characterAdded(char)
 		local hrp = char:WaitForChild("HumanoidRootPart", 10)
@@ -775,4 +843,4 @@ end
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 
-print("✅ ĐÃ THÊM WALKSPEED (1-2000) THÀNH CÔNG!")
+print("✅ ĐÃ THÊM AUTO CLICK VÀ WALKSPEED THÀNH CÔNG!")

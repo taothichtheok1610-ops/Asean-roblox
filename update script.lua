@@ -45,10 +45,12 @@ local Settings = {
 	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
 	AimSilent = false,      -- 🔫 AIM SILENT (BẮN LẶNG LẼ)
 	WallCheck = false,
-	TeamCheck = true,       -- 👥 TEAM CHECK (MẶC ĐỊNH BẬT)
+	TeamCheck = false,      -- 👥 TEAM CHECK (TẮT - FIX LỖI)
 	Fly = false,            -- ✈️ FLY THEO PLAYER (MẶC ĐỊNH TẮT)
+	KillAura = false,       -- ⚔️ KILL AURA (BẮN TẤY XA)
 	FOVSize = 120,
 	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY (MẶC ĐỊNH 5)
+	AuraRange = 50,         -- ⚔️ BÁN KÍNH KILL AURA (MẶC ĐỊNH 50)
 	Smoothness = 0.25,
 }
 
@@ -115,7 +117,7 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 240, 0, 540)  -- ⭐ TĂNG CHIỀU CAO CHO AIM SILENT
+menuFrame.Size = UDim2.new(0, 240, 0, 600)  -- ⭐ TĂNG CHIỀU CAO CHO KILL AURA
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -285,7 +287,46 @@ btnFlyUp.MouseButton1Click:Connect(function()
 	Settings.FlyHeight = math.min(20, Settings.FlyHeight + 1)
 end)
 
--- ⭐ TẠO CÁC TOGGLE
+-- ⭐ AURA RANGE CONTROL
+local auraRangeControl = Instance.new("Frame")
+auraRangeControl.Size = UDim2.new(1, 0, 0, 26)
+auraRangeControl.BackgroundTransparency = 1
+auraRangeControl.Parent = container
+
+local btnAuraDown = Instance.new("TextButton")
+btnAuraDown.Size = UDim2.new(0.48, 0, 1, 0)
+btnAuraDown.Text = "- Bán K"
+btnAuraDown.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+btnAuraDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnAuraDown.Font = Enum.Font.SourceSansBold
+btnAuraDown.Parent = auraRangeControl
+
+local btnAuraUp = Instance.new("TextButton")
+btnAuraUp.Size = UDim2.new(0.48, 0, 1, 0)
+btnAuraUp.Position = UDim2.new(0.52, 0, 0, 0)
+btnAuraUp.Text = "+ Bán K"
+btnAuraUp.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+btnAuraUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnAuraUp.Font = Enum.Font.SourceSansBold
+btnAuraUp.Parent = auraRangeControl
+
+btnAuraDown.MouseButton1Click:Connect(function()
+	Settings.AuraRange = math.max(10, Settings.AuraRange - 5)
+end)
+
+btnAuraUp.MouseButton1Click:Connect(function()
+	Settings.AuraRange = math.min(100, Settings.AuraRange + 5)
+end)
+
+-- ⭐ HIỂN THỊ THÔNG TIN AURA
+local auraInfoLabel = Instance.new("TextLabel")
+auraInfoLabel.Size = UDim2.new(1, 0, 0, 20)
+auraInfoLabel.BackgroundTransparency = 1
+auraInfoLabel.Text = "Bán Kính Aura: 50"
+auraInfoLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+auraInfoLabel.Font = Enum.Font.SourceSansBold
+auraInfoLabel.TextSize = 12
+auraInfoLabel.Parent = container
 createToggle("ESP", "📦 Khung Hộp 2D")
 createToggle("Health", "❤️ Hiện Tên & HP")
 createToggle("Lines", "📍 Line Nối Đầu")
@@ -294,7 +335,8 @@ createToggle("Aimbot", "🎯 Aimbot Mượt")
 createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
 createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
 createToggle("AimSilent", "🔫 Aim Silent")     -- ⭐ AIM SILENT
-createToggle("TeamCheck", "👥 Kiểm Tra Team")  -- ⭐ TEAM CHECK
+createToggle("KillAura", "⚔️ Kill Aura (Tấy)")  -- ⭐ KILL AURA
+createToggle("TeamCheck", "👥 Kiểm Tra Team (BỎ)")  -- ⭐ TẮT
 createToggle("Fly", "✈️ Fly Theo Player")     -- ⭐ FLY
 createToggle("WallCheck", "🚫 Wall Check")
 
@@ -303,20 +345,23 @@ table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 end))
 
 ----------------------------------------------------
--- 2. TEAM CHECK LOGIC
+-- 2. TEAM CHECK LOGIC (ĐANG TẮT - CÓ LỖI)
 ----------------------------------------------------
 local function isSameTeam(player)
+	-- ⭐ TẮT HOÀN TOÀN - CÓ LỖI VỚI TEAM CHECK
+	return false
+	
+	-- CODE CŨ (TẮT):
+	--[[
 	if not Settings.TeamCheck then return false end
 	if not player or not LocalPlayer then return false end
 	
 	local playerTeam = player.Team
 	local localPlayerTeam = LocalPlayer.Team
 	
-	-- Nếu không có team (neutral) thì không cùng team
 	if not playerTeam or not localPlayerTeam then return false end
-	
-	-- Kiểm tra có phải cùng team không
 	return playerTeam == localPlayerTeam
+	--]]
 end
 
 ----------------------------------------------------
@@ -433,6 +478,73 @@ local function aimSilent(targetPlayer)
 end
 
 ----------------------------------------------------
+-- 2.7 KILL AURA LOGIC (BẮN TẤY XA XUYÊN TƯỜNG)
+----------------------------------------------------
+local function getAllEnemiesInAura()
+	local enemies = {}
+	local myChar = LocalPlayer.Character
+	if not myChar then return enemies end
+	
+	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return enemies end
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local targetHead = player.Character:FindFirstChild("Head")
+			local humanoid = player.Character:FindFirstChild("Humanoid")
+			
+			if targetHead and humanoid and humanoid.Health > 0 then
+				-- ⭐ KIỂM TRA KHOẢNG CÁCH (BÁN KÍNH AURA)
+				local distance = (targetHead.Position - myHRP.Position).Magnitude
+				if distance <= Settings.AuraRange then
+					table.insert(enemies, player)
+				end
+			end
+		end
+	end
+	
+	return enemies
+end
+
+local function killAuraShoot()
+	if not Settings.KillAura then return end
+	
+	local myChar = LocalPlayer.Character
+	if not myChar then return end
+	
+	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return end
+	
+	-- ⭐ LẤY TẤT CẢ ENEMY TRONG AURA
+	local enemies = getAllEnemiesInAura()
+	
+	for _, enemy in ipairs(enemies) do
+		if enemy and enemy.Character then
+			local targetHead = enemy.Character:FindFirstChild("Head")
+			local humanoid = enemy.Character:FindFirstChild("Humanoid")
+			
+			if targetHead and humanoid and humanoid.Health > 0 then
+				-- ⭐ BẮN XUYÊN TƯỜNG (KHÔNG CẦN RAYCAST)
+				-- TÌM REMOTE EVENT VÀ GỬI DAMAGE
+				local attackRemote = myChar:FindFirstChild("RemoteEvent") 
+					or myChar:FindFirstChildOfClass("RemoteEvent")
+				
+				if attackRemote then
+					pcall(function()
+						attackRemote:FireServer(targetHead)
+					end)
+				else
+					-- ⭐ FALLBACK: DAMAGE TRỰC TIẾP
+					if humanoid then
+						humanoid:TakeDamage(25)
+					end
+				end
+			end
+		end
+	end
+end
+
+----------------------------------------------------
 -- 3. AIMBOT LOGIC
 ----------------------------------------------------
 local function getClosestPlayerInFOV()
@@ -546,6 +658,9 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	
 	-- ⭐ CẬP NHẬT HIỂN THỊ ĐỘ CAO BAY
 	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
+	
+	-- ⭐ CẬP NHẬT HIỂN THỊ BÁN KÍNH AURA
+	auraInfoLabel.Text = string.format("Bán Kính Aura: %d", Settings.AuraRange)
 
 	-- ⭐ FLY LOGIC
 	if Settings.Fly then
@@ -607,11 +722,14 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 		end
 	end
 
+	-- ⭐ KILL AURA LOGIC (BẮN TẤY XA)
+	killAuraShoot()
+
 	local topScreenPos = Vector2.new(Camera.ViewportSize.X / 2, 0)
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
-			-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
+			-- ⭐ KIỂM TRA TEAM TẮT - CÓ LỖI (LÚC NÀY LUÔN FALSE)
 			if isSameTeam(player) then continue end
 			
 			local objs = getPlayerDrawings(player)
@@ -733,7 +851,7 @@ end))
 ----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
-	-- ⭐ KIỂM TRA TEAM - NẾU CÙNG TEAM THÌ BỎ QUA
+	-- ⭐ KIỂM TRA TEAM TẮT - CÓ LỖI (LÚC NÀY LUÔN FALSE)
 	if isSameTeam(player) then return end
 
 	local function characterAdded(char)
@@ -785,3 +903,5 @@ table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 ----------------------------------------------------
 print("✅ DELTA ESP PRO LOADED! Nhấn MENU để bật các chức năng")
 print("🔫 Aim Silent + Wall Check đã bật!")
+print("⚔️ Kill Aura (Tấy xuyên tường) đã sẵn sàng!")
+print("⚠️ Team Check đã TẮT (fix lỗi ESP)")

@@ -1,4 +1,4 @@
--- DELTA X: DRAGGABLE MENU BUTTON + DEFAULT ALL OFF
+-- DELTA X: DRAGGABLE MENU BUTTON (FIXED)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -87,7 +87,7 @@ fovStroke.Color = Color3.fromRGB(0, 255, 255)
 fovStroke.Thickness = 1.5
 fovStroke.Parent = fovFrame
 
--- Menu Toggle Button (Kéo thả được)
+-- Menu Toggle Button (Tròn, Kéo thả chuẩn 100%)
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
 toggleBtn.Size = UDim2.new(0, 50, 0, 50)
@@ -104,39 +104,6 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(1, 0)
 btnCorner.Parent = toggleBtn
 
--- LOGIC KÉO THẢ CHO NÚT MENU TRÒN (TỰ PHÂN BIỆT KÉO HAY BẤM)
-local btnDragging = false
-local btnDragStart = nil
-local btnStartPos = nil
-local hasDragged = false
-
-table.insert(ScriptConnections, toggleBtn.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		btnDragging = true
-		hasDragged = false
-		btnDragStart = input.Position
-		btnStartPos = toggleBtn.Position
-
-		local connection
-		connection = input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				btnDragging = false
-				if connection then connection:Disconnect() end
-			end
-		end)
-	end
-end))
-
-table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and btnDragging then
-		local delta = input.Position - btnDragStart
-		if delta.Magnitude > 5 then
-			hasDragged = true
-		end
-		toggleBtn.Position = UDim2.new(btnStartPos.X.Scale, btnStartPos.X.Offset + delta.X, btnStartPos.Y.Scale, btnStartPos.Y.Offset + delta.Y)
-	end
-end))
-
 -- Bảng Menu Chính
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
@@ -152,7 +119,55 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
--- LOGIC KÉO THẢ BẢNG MENU
+-- LOGIC KÉO THẢ CHUẨN CHO NÚT MENU (FIXED)
+local draggingBtn = false
+local dragInputBtn, dragStartBtn, startPosBtn
+local hasMoved = false
+
+table.insert(ScriptConnections, toggleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingBtn = true
+		hasMoved = false
+		dragStartBtn = input.Position
+		startPosBtn = toggleBtn.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingBtn = false
+			end
+		end)
+	end
+end))
+
+table.insert(ScriptConnections, toggleBtn.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputBtn = input
+	end
+end))
+
+table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
+	if draggingBtn and input == dragInputBtn then
+		local delta = input.Position - dragStartBtn
+		if delta.Magnitude > 4 then
+			hasMoved = true
+		end
+		toggleBtn.Position = UDim2.new(
+			startPosBtn.X.Scale, 
+			startPosBtn.X.Offset + delta.X, 
+			startPosBtn.Y.Scale, 
+			startPosBtn.Y.Offset + delta.Y
+		)
+	end
+end))
+
+-- Bật/tắt Menu (Chỉ khi nhấn nhả bình thường, không mở khi đang kéo)
+table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
+	if not hasMoved then
+		menuFrame.Visible = not menuFrame.Visible
+	end
+end))
+
+-- LOGIC KÉO THẢ BẢNG MENU CHÍNH
 local menuDragging, menuDragStart, menuStartPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -172,17 +187,10 @@ table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(i
 	end
 end))
 
--- Bật/tắt Menu (Chỉ khi nhấn nhả, không bật khi đang kéo)
-table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
-	if not hasDragged then
-		menuFrame.Visible = not menuFrame.Visible
-	end
-end))
-
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP (DRAGGABLE MENU)"
+title.Text = "DELTA ESP (FIXED DRAG)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13

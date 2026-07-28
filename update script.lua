@@ -43,14 +43,17 @@ local Settings = {
 	Aimbot = false,
 	LockAim = false,        -- 🔒 LOCK AIM CHẶT
 	PredictAim = false,     -- 🎯 DỰ ĐOÁN CHUYỂN ĐỘNG
+	AimSilent = false,      -- 🔫 AIM SILENT (BẮN LẶNG LẼ)
 	WallCheck = false,
 	TeamCheck = true,       -- 👥 TEAM CHECK (MẶC ĐỊNH BẬT)
 	Fly = false,            -- ✈️ FLY THEO PLAYER (MẶC ĐỊNH TẮT)
 	FOVSize = 120,
+	FlyHeight = 5,          -- ✈️ ĐỘ CAO BAY (MẶC ĐỊNH 5)
 	Smoothness = 0.25,
 }
 
 local CurrentFlyTarget = nil  -- ⭐ LƯU TARGET ĐANG FLY
+local LastAimSilentTarget = nil  -- ⭐ LƯU TARGET AIM SILENT
 
 ----------------------------------------------------
 -- 1. CLEANUP UI CŨ & MENU GUI
@@ -112,7 +115,7 @@ btnCorner.Parent = toggleBtn
 
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 240, 0, 480)  -- ⭐ TĂNG CHIỀU CAO CHO THÊM BUTTON
+menuFrame.Size = UDim2.new(0, 240, 0, 540)  -- ⭐ TĂNG CHIỀU CAO CHO AIM SILENT
 menuFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 menuFrame.BackgroundTransparency = 0.1
@@ -241,6 +244,47 @@ btnPlus.MouseButton1Click:Connect(function()
 	fovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
 end)
 
+-- ⭐ HIỂN THỊ THÔNG TIN FLY
+local flyInfoLabel = Instance.new("TextLabel")
+flyInfoLabel.Size = UDim2.new(1, 0, 0, 20)
+flyInfoLabel.BackgroundTransparency = 1
+flyInfoLabel.Text = "Độ Cao Bay: 5"
+flyInfoLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+flyInfoLabel.Font = Enum.Font.SourceSansBold
+flyInfoLabel.TextSize = 12
+flyInfoLabel.Parent = container
+
+-- ⭐ FLY HEIGHT CONTROL
+local flyHeightControl = Instance.new("Frame")
+flyHeightControl.Size = UDim2.new(1, 0, 0, 26)
+flyHeightControl.BackgroundTransparency = 1
+flyHeightControl.Parent = container
+
+local btnFlyDown = Instance.new("TextButton")
+btnFlyDown.Size = UDim2.new(0.48, 0, 1, 0)
+btnFlyDown.Text = "- Cao"
+btnFlyDown.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
+btnFlyDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlyDown.Font = Enum.Font.SourceSansBold
+btnFlyDown.Parent = flyHeightControl
+
+local btnFlyUp = Instance.new("TextButton")
+btnFlyUp.Size = UDim2.new(0.48, 0, 1, 0)
+btnFlyUp.Position = UDim2.new(0.52, 0, 0, 0)
+btnFlyUp.Text = "+ Cao"
+btnFlyUp.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
+btnFlyUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlyUp.Font = Enum.Font.SourceSansBold
+btnFlyUp.Parent = flyHeightControl
+
+btnFlyDown.MouseButton1Click:Connect(function()
+	Settings.FlyHeight = math.max(1, Settings.FlyHeight - 1)
+end)
+
+btnFlyUp.MouseButton1Click:Connect(function()
+	Settings.FlyHeight = math.min(20, Settings.FlyHeight + 1)
+end)
+
 -- ⭐ TẠO CÁC TOGGLE
 createToggle("ESP", "📦 Khung Hộp 2D")
 createToggle("Health", "❤️ Hiện Tên & HP")
@@ -249,6 +293,7 @@ createToggle("Skeleton", "🦴 Skeleton Xương")
 createToggle("Aimbot", "🎯 Aimbot Mượt")
 createToggle("LockAim", "🔒 Lock Aim Chặt")     -- ⭐ LOCK AIM
 createToggle("PredictAim", "🎯 Dự Đoán Di Chuyển")  -- ⭐ PREDICT AIM
+createToggle("AimSilent", "🔫 Aim Silent")     -- ⭐ AIM SILENT
 createToggle("TeamCheck", "👥 Kiểm Tra Team")  -- ⭐ TEAM CHECK
 createToggle("Fly", "✈️ Fly Theo Player")     -- ⭐ FLY
 createToggle("WallCheck", "🚫 Wall Check")
@@ -314,13 +359,13 @@ local function flyToTarget(targetPlayer)
 	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
 	if not myHRP then return end
 	
-	-- ⭐ FLY LÊN TRÊN ĐẦU PLAYER (CAO 5 STUDS)
-	local flyPos = targetHead.Position + Vector3.new(0, 5, 0)
+	-- ⭐ FLY LÊN TRÊN ĐẦU PLAYER (THEO ĐỘ CAO TỪ SETTING)
+	local flyPos = targetHead.Position + Vector3.new(0, Settings.FlyHeight, 0)
 	myHRP.CFrame = CFrame.new(flyPos)
 end
 
 ----------------------------------------------------
--- 3. AIMBOT LOGIC
+-- 2.6 WALL CHECK LOGIC (ISVISIBLE)
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -336,6 +381,60 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
+----------------------------------------------------
+-- 2.7 AIM SILENT LOGIC
+----------------------------------------------------
+local function getAimSilentTarget()
+	local closestPlayer = nil
+	local shortestDistance = Settings.FOVSize
+	local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			-- ⭐ KIỂM TRA TEAM
+			if isSameTeam(player) then continue end
+			
+			local head = player.Character:FindFirstChild("Head")
+			local humanoid = player.Character:FindFirstChild("Humanoid")
+
+			if head and humanoid and humanoid.Health > 0 then
+				-- ⭐ KIỂM TRA WALL CHECK
+				if not isVisible(head) then continue end
+				
+				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+				if onScreen then
+					local distance = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
+					if distance < shortestDistance then
+						shortestDistance = distance
+						closestPlayer = player
+					end
+				end
+			end
+		end
+	end
+	return closestPlayer
+end
+
+local function aimSilent(targetPlayer)
+	if not targetPlayer or not targetPlayer.Character then return end
+	
+	local targetHead = targetPlayer.Character:FindFirstChild("Head")
+	if not targetHead then return end
+	
+	local myChar = LocalPlayer.Character
+	if not myChar then return end
+	
+	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return end
+	
+	-- ⭐ ĐIỀU CHỈNH AIM VỀ ĐẦU ENEMY (LẶNG LẼ)
+	local targetCFrame = CFrame.new(myHRP.Position, targetHead.Position)
+	myHRP.CFrame = targetCFrame
+end
+
+----------------------------------------------------
+-- 3. AIMBOT LOGIC
+----------------------------------------------------
 local function getClosestPlayerInFOV()
 	local closestPlayer = nil
 	local shortestDistance = Settings.FOVSize
@@ -444,6 +543,9 @@ Players.PlayerRemoving:Connect(removePlayerDrawings)
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
+	
+	-- ⭐ CẬP NHẬT HIỂN THỊ ĐỘ CAO BAY
+	flyInfoLabel.Text = string.format("Độ Cao Bay: %d", Settings.FlyHeight)
 
 	-- ⭐ FLY LOGIC
 	if Settings.Fly then
@@ -491,6 +593,17 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 				-- Aim mượt mà bình thường
 				Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
 			end
+		end
+	end
+
+	-- ⭐ AIM SILENT LOGIC (LẶNG LẼ, CÓ WALL CHECK)
+	if Settings.AimSilent then
+		local targetPlayer = getAimSilentTarget()
+		if targetPlayer then
+			LastAimSilentTarget = targetPlayer
+			aimSilent(targetPlayer)
+		else
+			LastAimSilentTarget = nil
 		end
 	end
 
@@ -671,3 +784,4 @@ table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 -- END OF SCRIPT
 ----------------------------------------------------
 print("✅ DELTA ESP PRO LOADED! Nhấn MENU để bật các chức năng")
+print("🔫 Aim Silent + Wall Check đã bật!")

@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -584,27 +585,32 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. AUTO CLICK THỦ CÔNG
+-- 6. AUTO CLICK TỐI ƯU (VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT)
 ----------------------------------------------------
 task.spawn(function()
 	while true do
 		if Settings.AutoClick then
 			pcall(function()
 				local char = LocalPlayer.Character
-				if char then
+				if char and char:FindFirstChildOfClass("Humanoid") then
 					local tool = char:FindFirstChildOfClass("Tool")
+					
+					-- Ưu tiên 1: Dùng Activate() của Tool (Đảm bảo vừa đánh vừa di chuyển mượt)
 					if tool then
 						tool:Activate()
 					else
-						local VirtualInputManager = game:GetService("VirtualInputManager")
+						-- Ưu tiên 2: Giả lập nhấp nhả chuột có độ trễ cực ngắn tránh khựng nhân vật
 						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-						task.wait(0.01)
+						task.wait(0.02)
 						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end)
 		end
-		task.wait(Settings.ClickInterval / 1000)
+		
+		-- Tần suất bấm tối thiểu là 0.05s (50ms) để nhân vật không bị khựng di chuyển
+		local delayTime = math.max(Settings.ClickInterval / 1000, 0.05)
+		task.wait(delayTime)
 	end
 end)
 
@@ -846,4 +852,4 @@ end
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
 
-print("✅ ĐÃ SỬA LỖI VÀ BẬT MENU THÀNH CÔNG!")
+print("✅ ĐÃ CẬP NHẬT AUTO CLICK VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT MA!")

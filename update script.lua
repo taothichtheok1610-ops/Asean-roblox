@@ -1,4 +1,4 @@
--- DELTA X: DRAGGABLE MENU BUTTON (FIXED)
+-- DELTA X: MOBILE DRAGGABLE MENU BUTTON (100% WORKING ON TOUCH)
 
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
@@ -33,7 +33,6 @@ _G.Delta_Cleanup = function()
 	DrawObjects = {}
 end
 
--- TẤT CẢ MẶC ĐỊNH OFF
 local Settings = {
 	ESP = false,
 	Health = false,
@@ -46,7 +45,7 @@ local Settings = {
 }
 
 ----------------------------------------------------
--- 1. CLEANUP UI CŨ & MENU GUI
+-- 1. CLEANUP & SCREEN GUI
 ----------------------------------------------------
 local function wipeOldUI(folder)
 	if not folder then return end
@@ -87,24 +86,33 @@ fovStroke.Color = Color3.fromRGB(0, 255, 255)
 fovStroke.Thickness = 1.5
 fovStroke.Parent = fovFrame
 
--- Menu Toggle Button (Tròn, Kéo thả chuẩn 100%)
+----------------------------------------------------
+-- NÚT MENU (CẤU TRÚC FRAME CẢM ỨNG DRAGGABLE)
+----------------------------------------------------
+-- Container chính di chuyển
+local dragBtnHolder = Instance.new("Frame")
+dragBtnHolder.Name = "MenuBtnHolder"
+dragBtnHolder.Size = UDim2.new(0, 50, 0, 50)
+dragBtnHolder.Position = UDim2.new(0.02, 0, 0.35, 0)
+dragBtnHolder.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+dragBtnHolder.Active = true
+dragBtnHolder.Parent = screenGui
+
+local holderCorner = Instance.new("UICorner")
+holderCorner.CornerRadius = UDim.new(1, 0)
+holderCorner.Parent = dragBtnHolder
+
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "Toggle"
-toggleBtn.Size = UDim2.new(0, 50, 0, 50)
-toggleBtn.Position = UDim2.new(0.02, 0, 0.35, 0)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+toggleBtn.BackgroundTransparency = 1
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Text = "MENU"
 toggleBtn.Font = Enum.Font.SourceSansBold
 toggleBtn.TextSize = 14
-toggleBtn.Active = true
-toggleBtn.Parent = screenGui
+toggleBtn.Parent = dragBtnHolder
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(1, 0)
-btnCorner.Parent = toggleBtn
-
--- Bảng Menu Chính
+-- Bảng Menu
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
 menuFrame.Size = UDim2.new(0, 220, 0, 350)
@@ -119,78 +127,84 @@ local menuCorner = Instance.new("UICorner")
 menuCorner.CornerRadius = UDim.new(0, 10)
 menuCorner.Parent = menuFrame
 
--- LOGIC KÉO THẢ CHUẨN CHO NÚT MENU (FIXED)
-local draggingBtn = false
-local dragInputBtn, dragStartBtn, startPosBtn
-local hasMoved = false
+----------------------------------------------------
+-- LOGIC KÉO THẢ TỐI ƯU CHO TOUCH & MOBILE
+----------------------------------------------------
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local isMoved = false
 
-table.insert(ScriptConnections, toggleBtn.InputBegan:Connect(function(input)
+table.insert(ScriptConnections, dragBtnHolder.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		draggingBtn = true
-		hasMoved = false
-		dragStartBtn = input.Position
-		startPosBtn = toggleBtn.Position
+		dragging = true
+		isMoved = false
+		dragStart = input.Position
+		startPos = dragBtnHolder.Position
 
-		input.Changed:Connect(function()
+		local conn
+		conn = input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
-				draggingBtn = false
+				dragging = false
+				if conn then conn:Disconnect() end
 			end
 		end)
 	end
 end))
 
-table.insert(ScriptConnections, toggleBtn.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		dragInputBtn = input
-	end
-end))
-
 table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
-	if draggingBtn and input == dragInputBtn then
-		local delta = input.Position - dragStartBtn
-		if delta.Magnitude > 4 then
-			hasMoved = true
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		if delta.Magnitude > 3 then
+			isMoved = true
 		end
-		toggleBtn.Position = UDim2.new(
-			startPosBtn.X.Scale, 
-			startPosBtn.X.Offset + delta.X, 
-			startPosBtn.Y.Scale, 
-			startPosBtn.Y.Offset + delta.Y
+		dragBtnHolder.Position = UDim2.new(
+			startPos.X.Scale, 
+			startPos.X.Offset + delta.X, 
+			startPos.Y.Scale, 
+			startPos.Y.Offset + delta.Y
 		)
 	end
 end))
 
--- Bật/tắt Menu (Chỉ khi nhấn nhả bình thường, không mở khi đang kéo)
+-- Mở Menu (Chỉ mở khi chạm bấm nhanh, không mở khi đang kéo nút)
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
-	if not hasMoved then
+	if not isMoved then
 		menuFrame.Visible = not menuFrame.Visible
 	end
 end))
 
--- LOGIC KÉO THẢ BẢNG MENU CHÍNH
+-- Kéo thả bảng Menu chính
 local menuDragging, menuDragStart, menuStartPos
 table.insert(ScriptConnections, menuFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		menuDragging = true
 		menuDragStart = input.Position
 		menuStartPos = menuFrame.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then menuDragging = false end
+		local conn
+		conn = input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				menuDragging = false
+				if conn then conn:Disconnect() end
+			end
 		end)
 	end
 end))
 
 table.insert(ScriptConnections, UserInputService.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and menuDragging then
+	if menuDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 		local delta = input.Position - menuDragStart
 		menuFrame.Position = UDim2.new(menuStartPos.X.Scale, menuStartPos.X.Offset + delta.X, menuStartPos.Y.Scale, menuStartPos.Y.Offset + delta.Y)
 	end
 end))
 
+----------------------------------------------------
+-- 2. GIAO DIỆN VÀ TÍNH NĂNG MENU
+----------------------------------------------------
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "DELTA ESP (FIXED DRAG)"
+title.Text = "DELTA ESP (MOBILE DRAG)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -213,9 +227,7 @@ local function updateHealthUIState()
 			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local gui = hrp:FindFirstChild("ESP_HealthUI")
-				if gui then
-					gui.Enabled = Settings.Health
-				end
+				if gui then gui.Enabled = Settings.Health end
 			end
 		end
 	end
@@ -241,9 +253,7 @@ local function createToggle(name, text)
 			btn.Text = text .. ": OFF"
 		end
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		if name == "Health" then
-			updateHealthUIState()
-		end
+		if name == "Health" then updateHealthUIState() end
 	end
 	update()
 
@@ -293,7 +303,7 @@ createToggle("Aimbot", "Bật Aimbot FOV")
 createToggle("WallCheck", "Wall Check (Chống tường)")
 
 ----------------------------------------------------
--- 2. AIMBOT LOGIC
+-- 3. AIMBOT & DRAWING LOGIC
 ----------------------------------------------------
 local function isVisible(targetPart)
 	if not Settings.WallCheck then return true end
@@ -334,32 +344,17 @@ local function getClosestPlayerInFOV()
 	return closestPlayer
 end
 
-----------------------------------------------------
--- 3. DRAWING LOGIC
-----------------------------------------------------
 local R15Joints = {
-	{"Head", "UpperTorso"},
-	{"UpperTorso", "LowerTorso"},
-	{"UpperTorso", "LeftUpperArm"},
-	{"LeftUpperArm", "LeftLowerArm"},
-	{"LeftLowerArm", "LeftHand"},
-	{"UpperTorso", "RightUpperArm"},
-	{"RightUpperArm", "RightLowerArm"},
-	{"RightLowerArm", "RightHand"},
-	{"LowerTorso", "LeftUpperLeg"},
-	{"LeftUpperLeg", "LeftLowerLeg"},
-	{"LeftLowerLeg", "LeftFoot"},
-	{"LowerTorso", "RightUpperLeg"},
-	{"RightUpperLeg", "RightLowerLeg"},
-	{"RightLowerLeg", "RightFoot"}
+	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+	{"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+	{"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
+	{"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+	{"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
 }
 
 local R6Joints = {
-	{"Head", "Torso"},
-	{"Torso", "Left Arm"},
-	{"Torso", "Right Arm"},
-	{"Torso", "Left Leg"},
-	{"Torso", "Right Leg"}
+	{"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+	{"Torso", "Left Leg"}, {"Torso", "Right Leg"}
 }
 
 local function createLine(color)
@@ -379,13 +374,9 @@ local function getPlayerDrawings(player)
 			Left = createLine(Color3.fromRGB(0, 255, 0)),
 			Right = createLine(Color3.fromRGB(0, 255, 0))
 		}
-
 		local topLine = createLine(Color3.fromRGB(255, 255, 0))
-
 		local skeleton = {}
-		for i = 1, 15 do
-			table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255)))
-		end
+		for i = 1, 15 do table.insert(skeleton, createLine(Color3.fromRGB(255, 255, 255))) end
 
 		DrawObjects[player] = {
 			BoxLines = boxLines,
@@ -410,7 +401,7 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 4. RENDER LOOP
+-- 4. RENDER LOOP & HEALTH UI
 ----------------------------------------------------
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	fovFrame.Visible = Settings.Aimbot
@@ -437,15 +428,11 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 				for _, part in ipairs(char:GetChildren()) do
 					if part:IsA("BasePart") and (part.Name:find("Leg") or part.Name:find("Foot")) then
 						local bottomPartY = part.Position.Y - (part.Size.Y / 2)
-						if bottomPartY < lowestY then
-							lowestY = bottomPartY
-						end
+						if bottomPartY < lowestY then lowestY = bottomPartY end
 					end
 				end
 
-				if lowestY == head.Position.Y then
-					lowestY = head.Position.Y - 4.5
-				end
+				if lowestY == head.Position.Y then lowestY = head.Position.Y - 4.5 end
 
 				local headTopWorld = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.3, 0)
 				local feetBottomWorld = Vector3.new(head.Position.X, lowestY, head.Position.Z)
@@ -460,33 +447,22 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 					local bottomY = math.max(head2D.Y, feet2D.Y)
 					local centerX = head2D.X
 
-					-- 1. BOX 2D
+					-- BOX 2D
 					if Settings.ESP then
 						local topLeft = Vector2.new(centerX - width / 2, topY)
 						local topRight = Vector2.new(centerX + width / 2, topY)
 						local bottomLeft = Vector2.new(centerX - width / 2, bottomY)
 						local bottomRight = Vector2.new(centerX + width / 2, bottomY)
 
-						objs.BoxLines.Top.From = topLeft
-						objs.BoxLines.Top.To = topRight
-						objs.BoxLines.Top.Visible = true
-
-						objs.BoxLines.Bottom.From = bottomLeft
-						objs.BoxLines.Bottom.To = bottomRight
-						objs.BoxLines.Bottom.Visible = true
-
-						objs.BoxLines.Left.From = topLeft
-						objs.BoxLines.Left.To = bottomLeft
-						objs.BoxLines.Left.Visible = true
-
-						objs.BoxLines.Right.From = topRight
-						objs.BoxLines.Right.To = bottomRight
-						objs.BoxLines.Right.Visible = true
+						objs.BoxLines.Top.From = topLeft; objs.BoxLines.Top.To = topRight; objs.BoxLines.Top.Visible = true
+						objs.BoxLines.Bottom.From = bottomLeft; objs.BoxLines.Bottom.To = bottomRight; objs.BoxLines.Bottom.Visible = true
+						objs.BoxLines.Left.From = topLeft; objs.BoxLines.Left.To = bottomLeft; objs.BoxLines.Left.Visible = true
+						objs.BoxLines.Right.From = topRight; objs.BoxLines.Right.To = bottomRight; objs.BoxLines.Right.Visible = true
 					else
 						for _, line in pairs(objs.BoxLines) do line.Visible = false end
 					end
 
-					-- 2. LINE ĐỈNH
+					-- LINE ĐỈNH
 					if Settings.Lines then
 						objs.TopLine.From = topScreenPos
 						objs.TopLine.To = Vector2.new(head2D.X, head2D.Y)
@@ -495,7 +471,7 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 						objs.TopLine.Visible = false
 					end
 
-					-- 3. SKELETON
+					-- SKELETON
 					if Settings.Skeleton then
 						local isR15 = char:FindFirstChild("UpperTorso") ~= nil
 						local joints = isR15 and R15Joints or R6Joints
@@ -516,14 +492,10 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 								else
 									line.Visible = false
 								end
-							elseif line then
-								line.Visible = false
-							end
+							elseif line then line.Visible = false end
 						end
 
-						for i = #joints + 1, #objs.Skeleton do
-							objs.Skeleton[i].Visible = false
-						end
+						for i = #joints + 1, #objs.Skeleton do objs.Skeleton[i].Visible = false end
 					else
 						for _, line in ipairs(objs.Skeleton) do line.Visible = false end
 					end
@@ -541,9 +513,6 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	end
 end))
 
-----------------------------------------------------
--- 5. HEALTH & NAME UI
-----------------------------------------------------
 local function applyESP(player)
 	if player == LocalPlayer then return end
 

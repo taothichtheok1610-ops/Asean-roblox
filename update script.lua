@@ -1,4 +1,4 @@
--- BLUE LOCK: AUTO GOAL & TP BALL MENU (BLACK THEME)
+-- BLUE LOCK: AUTO BALL TRACKER & AUTO GOAL (UPDATED MECHANICS)
 if _G.BlueLock_Cleanup then pcall(_G.BlueLock_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -6,7 +6,9 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
 local ScriptConnections = {}
 
@@ -19,18 +21,32 @@ end
 
 -- ⭐ CÀI ĐẶT MẶC ĐỊNH
 local Settings = {
-	TPBall = false,
-	AutoGoal = false,
-	TPDistance = 3, -- Khoảng cách bóng hút về người (studs)
+	AutoFlyBall = false, -- Tự bay tới chỗ quả bóng
+	AutoGoal = false,    -- Tự khóa hướng vào gôn & tự click sút
+	HitDistance = 4,     -- Khoảng cách áp sát bóng (studs)
 }
 
 ----------------------------------------------------
--- 1. HÀM TÌM QUẢ BÓNG TRONG WORKSPACE
+-- 1. HÀM TÌM QUẢ BÓNG CHÍNH XÁC
 ----------------------------------------------------
 local function getBall()
-	-- Tìm các tên phổ biến của bóng trong game Blue Lock
+	-- Quét toàn bộ workspace tìm bóng dựa vào ClassName và Name
+	for _, obj in ipairs(Workspace:GetChildren()) do
+		if obj:IsA("BasePart") or obj:IsA("Model") then
+			local name = obj.Name:lower()
+			if name:find("ball") or name:find("football") or name:find("soccer") or name:find("pelota") then
+				if obj:IsA("Model") then
+					return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+				else
+					return obj
+				end
+			end
+		end
+	end
+	
+	-- Quét sâu hơn nếu bóng nằm trong folder đặc biệt (Folder / Match)
 	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("BasePart") and (obj.Name == "Ball" or obj.Name == "Football" or obj.Name:find("Soccer")) then
+		if obj:IsA("BasePart") and (obj.Name == "Ball" or obj.Name == "SoccerBall" or obj.Name == "Football") then
 			return obj
 		end
 	end
@@ -38,23 +54,22 @@ local function getBall()
 end
 
 ----------------------------------------------------
--- 2. HÀM TÌM KHUNG THÀNH ĐỐI PHƯƠNG
+-- 2. HÀM TÌM GÔN ĐỐI PHƯƠNG
 ----------------------------------------------------
 local function getEnemyGoal()
-	-- Tìm goal/net thuộc về team địch hoặc xa người chơi nhất
 	local goals = {}
 	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("BasePart") and (obj.Name:find("Goal") or obj.Name:find("Net") or obj.Name:find("GoalPart")) then
+		if obj:IsA("BasePart") and (obj.Name:lower():find("goal") or obj.Name:lower():find("net")) then
 			table.insert(goals, obj)
 		end
 	end
 
 	if #goals == 0 then return nil end
 
-	-- Tìm khung thành xa vị trí hiện tại của player nhất (thường là khung thành đối phương)
 	local char = LocalPlayer.Character
 	if not char or not char:FindFirstChild("HumanoidRootPart") then return goals[1] end
 
+	-- Chọn gôn ở xa vị trí của bạn nhất (thường là gôn đối phương)
 	local farthestGoal = goals[1]
 	local maxDist = 0
 
@@ -80,7 +95,7 @@ elseif CoreGui:FindFirstChild("RobloxGui") then
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BlueLock_UI_" .. math.random(1000, 9999)
+screenGui.Name = "BlueLock_FixUI_" .. math.random(1000, 9999)
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = parentContainer
@@ -104,7 +119,7 @@ local toggleStroke = Instance.new("UIStroke") toggleStroke.Color = Color3.fromRG
 -- Khung Menu Chính
 local menuFrame = Instance.new("Frame")
 menuFrame.Name = "Menu"
-menuFrame.Size = UDim2.new(0, 220, 0, 210)
+menuFrame.Size = UDim2.new(0, 230, 0, 200)
 menuFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
 menuFrame.BackgroundTransparency = 0.05
@@ -138,7 +153,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "nguyenk12[BLUE LOCK]"
+title.Text = "nguyenk12[BLUE LOCK FIX]"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13
@@ -159,7 +174,7 @@ local function createToggle(name, text)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(0.95, 0, 0, 32)
 	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 12
+	btn.TextSize = 11
 	btn.Parent = container
 
 	local corner = Instance.new("UICorner") corner.CornerRadius = UDim.new(0, 5) corner.Parent = btn
@@ -185,16 +200,18 @@ local function createToggle(name, text)
 	end))
 end
 
-createToggle("TPBall", "⚽ TP Ball To Me")
-createToggle("AutoGoal", "🎯 Auto Goal (Sút Vào)")
+createToggle("AutoFlyBall", "⚽ Auto Bay Theo Bóng")
+createToggle("AutoGoal", "🎯 Auto Aim Goal & Sút")
 
 table.insert(ScriptConnections, toggleBtn.MouseButton1Click:Connect(function()
 	menuFrame.Visible = not menuFrame.Visible
 end))
 
 ----------------------------------------------------
--- 4. VÒNG LẶP XỬ LÝ (RENDERSTEPPED)
+-- 4. LUỒNG XỬ LÝ BAY & SÚT BÓNG (RENDERSTEPPED)
 ----------------------------------------------------
+local lastShot = 0
+
 table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	local char = LocalPlayer.Character
 	if not char then return end
@@ -204,27 +221,45 @@ table.insert(ScriptConnections, RunService.RenderStepped:Connect(function()
 	local ball = getBall()
 	if not ball then return end
 
-	-- ⚽ FEATURE 1: TELEPORT BALL TO PLAYER
-	if Settings.TPBall then
+	-- 1. BAY ÁP SÁT BÓNG
+	if Settings.AutoFlyBall then
 		pcall(function()
-			-- Giữ bóng ở phía trước chân người chơi
-			ball.CFrame = hrp.CFrame * CFrame.new(0, -1, -Settings.TPDistance)
-			ball.Velocity = Vector3.new(0, 0, 0)
-			ball.RotVelocity = Vector3.new(0, 0, 0)
+			-- Dịch chuyển vị trí người chơi đến sát phía sau quả bóng
+			local targetPos = ball.Position - (ball.Velocity.Unit * Settings.HitDistance)
+			if ball.Velocity.Magnitude < 1 then
+				targetPos = ball.Position + Vector3.new(0, 0.5, -2)
+			end
+			hrp.CFrame = CFrame.new(targetPos, ball.Position)
 		end)
 	end
 
-	-- 🎯 FEATURE 2: AUTO GOAL (ĐƯA BÓNG VÀO KHUNG THÀNH ĐỊCH)
+	-- 2. KHÓA HƯỚNG VÀO GÔN ĐỐI PHƯƠNG & TỰ CLICK SÚT
 	if Settings.AutoGoal then
 		pcall(function()
 			local goal = getEnemyGoal()
 			if goal then
-				-- Đưa thẳng bóng vào trong khung thành đối phương
-				ball.CFrame = goal.CFrame
-				ball.Velocity = goal.CFrame.LookVector * -50 -- Đẩy mạnh bóng vào lưới
+				-- Xoay nhân vật và camera về phía gôn
+				local lookAtGoal = CFrame.new(hrp.Position, Vector3.new(goal.Position.X, hrp.Position.Y, goal.Position.Z))
+				hrp.CFrame = lookAtGoal
+				Camera.CFrame = CFrame.new(Camera.CFrame.Position, goal.Position)
+
+				-- Nếu khoảng cách từ người tới bóng dưới 10 studs -> Tự bấm Click/Chân sút
+				local distToBall = (hrp.Position - ball.Position).Magnitude
+				if distToBall < 10 and (tick() - lastShot > 0.15) then
+					lastShot = tick()
+					-- Giả lập bấm chuột trái / Tool Sút
+					local tool = char:FindFirstChildOfClass("Tool")
+					if tool then
+						tool:Activate()
+					else
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+					end
+				end
 			end
 		end)
 	end
 end))
 
-print("✅ ĐÃ TẢI THÀNH CÔNG SCRIPT BLUE LOCK (AUTO GOAL & TP BALL)!")
+print("✅ SCRIPT BLUE LOCK FIX THÀNH CÔNG!")

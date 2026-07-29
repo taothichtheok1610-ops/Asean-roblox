@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK
+-- DELTA X NGUYENDZK12: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -149,7 +149,7 @@ end))
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "⭐ DELTA ESP & AIM & SPEED"
+title.Text = "nguyenk12[AI.che4t]"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 13

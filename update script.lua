@@ -1,5 +1,7 @@
--- Blue Lock Ball Control Script v3 - FIX HOÀN CHỈNH
+-- Blue Lock Ball Control - Clean Script v2
+-- 🔒 Không chứa API Keys/Credentials - An toàn để chia sẻ
 -- 📍 ĐẶT TẠI: StarterPlayer > StarterPlayerScripts
+-- ⌨️ PHÍM: V = Toggle Menu | W/A/S/D = Điều khiển bóng
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -8,15 +10,18 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
--- ===================== BIẾN CẤU HÌNH =====================
-local ballControlEnabled = false
-local ballSpeed = 81
-local ballMaxSpeed = 200
-local isMenuDragging = false
-local menuDragStart = Vector2.new(0, 0)
-local menuDragOffset = Vector2.new(0, 0)
+-- ===================== CẤU HÌNH =====================
+local CONFIG = {
+    ballControlEnabled = false,
+    menuVisible = true,
+    ballSpeed = 81,
+    ballMaxSpeed = 200,
+    isMenuDragging = false,
+    menuDragStart = Vector2.new(0, 0),
+    menuDragOffset = Vector2.new(0, 0),
+}
 
--- ===================== TẠO GUI MENU =====================
+-- ===================== TẠO GUI =====================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BallControlGui"
 screenGui.ResetOnSpawn = false
@@ -26,61 +31,84 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 -- Frame chính
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 250, 0, 180)
+mainFrame.Size = UDim2.new(0, 280, 0, 240)
 mainFrame.Position = UDim2.new(0.35, 0, 0.1, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BorderColor3 = Color3.fromRGB(50, 50, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+mainFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
 mainFrame.BorderSizePixel = 2
 mainFrame.Parent = screenGui
 
--- Title (kéo được)
+-- Title Frame
+local titleFrame = Instance.new("Frame")
+titleFrame.Name = "TitleFrame"
+titleFrame.Size = UDim2.new(1, 0, 0, 35)
+titleFrame.BackgroundColor3 = Color3.fromRGB(30, 40, 80)
+titleFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
+titleFrame.BorderSizePixel = 0
+titleFrame.Parent = mainFrame
+
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "Title"
-titleLabel.Size = UDim2.new(1, 0, 0, 30)
-titleLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleLabel.Size = UDim2.new(0.85, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
 titleLabel.BorderSizePixel = 0
-titleLabel.Text = "Ball Control Gui"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Text = "🎮 Ball Control v2"
+titleLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
 titleLabel.TextSize = 16
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Parent = mainFrame
+titleLabel.Parent = titleFrame
 
--- Nút Control
+-- Nút Close
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -32, 0, 2)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+closeButton.BorderSizePixel = 0
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 18
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = titleFrame
+
+-- ===== NÚT ĐIỀU KHIỂN =====
+
+-- Nút Control On/Off
 local controlButton = Instance.new("TextButton")
 controlButton.Name = "ControlButton"
-controlButton.Size = UDim2.new(1, -10, 0, 35)
-controlButton.Position = UDim2.new(0, 5, 0, 40)
-controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+controlButton.Size = UDim2.new(1, -10, 0, 40)
+controlButton.Position = UDim2.new(0, 5, 0, 42)
+controlButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 controlButton.BorderSizePixel = 0
-controlButton.Text = "CONTROL OFF"
+controlButton.Text = "⭕ CONTROL OFF"
 controlButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-controlButton.TextSize = 14
+controlButton.TextSize = 15
 controlButton.Font = Enum.Font.GothamBold
 controlButton.Parent = mainFrame
 
 -- Nút Teleport
 local teleportButton = Instance.new("TextButton")
 teleportButton.Name = "TeleportButton"
-teleportButton.Size = UDim2.new(1, -10, 0, 35)
-teleportButton.Position = UDim2.new(0, 5, 0, 80)
-teleportButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+teleportButton.Size = UDim2.new(1, -10, 0, 40)
+teleportButton.Position = UDim2.new(0, 5, 0, 87)
+teleportButton.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
 teleportButton.BorderSizePixel = 0
-teleportButton.Text = "Teleport to Ball"
+teleportButton.Text = "🔵 Teleport to Ball"
 teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportButton.TextSize = 14
+teleportButton.TextSize = 15
 teleportButton.Font = Enum.Font.GothamBold
 teleportButton.Parent = mainFrame
 
 -- Label tốc độ
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Name = "SpeedLabel"
-speedLabel.Size = UDim2.new(1, -10, 0, 15)
-speedLabel.Position = UDim2.new(0, 5, 0, 120)
+speedLabel.Size = UDim2.new(1, -10, 0, 18)
+speedLabel.Position = UDim2.new(0, 5, 0, 132)
 speedLabel.BackgroundTransparency = 1
 speedLabel.BorderSizePixel = 0
-speedLabel.Text = "Speed: " .. ballSpeed
-speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedLabel.TextSize = 12
+speedLabel.Text = "⚡ Speed: 81"
+speedLabel.TextColor3 = Color3.fromRGB(200, 200, 100)
+speedLabel.TextSize = 13
 speedLabel.Font = Enum.Font.Gotham
 speedLabel.TextXAlignment = Enum.TextXAlignment.Left
 speedLabel.Parent = mainFrame
@@ -88,122 +116,157 @@ speedLabel.Parent = mainFrame
 -- Slider tốc độ
 local speedSlider = Instance.new("Frame")
 speedSlider.Name = "SpeedSlider"
-speedSlider.Size = UDim2.new(1, -10, 0, 10)
-speedSlider.Position = UDim2.new(0, 5, 0, 140)
-speedSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-speedSlider.BorderColor3 = Color3.fromRGB(100, 100, 100)
+speedSlider.Size = UDim2.new(1, -10, 0, 12)
+speedSlider.Position = UDim2.new(0, 5, 0, 152)
+speedSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+speedSlider.BorderColor3 = Color3.fromRGB(80, 80, 120)
 speedSlider.BorderSizePixel = 1
 speedSlider.Parent = mainFrame
 
 local sliderButton = Instance.new("Frame")
 sliderButton.Name = "SliderButton"
-sliderButton.Size = UDim2.new(0, 15, 1, 0)
-sliderButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+sliderButton.Size = UDim2.new(0.4, 0, 1, 0)
+sliderButton.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
 sliderButton.BorderSizePixel = 0
 sliderButton.Parent = speedSlider
 
-print("✅ Menu đã tạo! Bạn có thể kéo menu ở thanh title")
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(1, -10, 0, 30)
+statusLabel.Position = UDim2.new(0, 5, 0, 170)
+statusLabel.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+statusLabel.BorderColor3 = Color3.fromRGB(80, 120, 200)
+statusLabel.BorderSizePixel = 1
+statusLabel.Text = "✓ Ready\n[Press V to hide]"
+statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+statusLabel.TextSize = 11
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+statusLabel.Parent = mainFrame
 
--- ===================== CÁC HÀM CHÍNH =====================
+-- ===================== HÀM CHỨC NĂNG =====================
 
-local function getBall()
-    local ball = workspace:FindFirstChild("Ball")
-    if ball then return ball end
+local function findBall()
+    -- Tìm bóng với tên thường gặp
+    local ballNames = {"Ball", "ball", "football", "Football", "Soccer", "soccer", "Soccerball"}
     
-    ball = workspace:FindFirstChild("football")
-    if ball then return ball end
+    for _, name in ipairs(ballNames) do
+        local ball = workspace:FindFirstChild(name)
+        if ball and ball:IsA("Part") then
+            return ball
+        end
+    end
     
-    ball = workspace:FindFirstChild("Soccer")
-    if ball then return ball end
-    
-    ball = workspace:FindFirstChild("Soccerball")
-    if ball then return ball end
-    
-    -- Tìm bóng theo Part có Sphere shape
-    for _, part in pairs(workspace:GetDescendants()) do
-        if part:IsA("Part") and part.Shape == Enum.PartType.Ball and part.Parent ~= player.Character then
-            return part
+    -- Tìm bóng theo Sphere shape
+    for _, part in ipairs(workspace:GetChildren()) do
+        if part:IsA("Part") and part.Shape == Enum.PartType.Ball then
+            if not part:IsDescendantOf(player.Character) then
+                return part
+            end
         end
     end
     
     return nil
 end
 
-local function toggleBallControl()
-    ballControlEnabled = not ballControlEnabled
+local function toggleControl()
+    CONFIG.ballControlEnabled = not CONFIG.ballControlEnabled
     
-    if ballControlEnabled then
-        controlButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        controlButton.Text = "CONTROL ON"
-        print("✅ BẬT điều khiển bóng!")
+    if CONFIG.ballControlEnabled then
+        controlButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        controlButton.Text = "🟢 CONTROL ON"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        statusLabel.Text = "✓ Control Enabled\n[W/A/S/D to move]"
+        print("✅ CONTROL ON")
     else
-        controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        controlButton.Text = "CONTROL OFF"
-        print("❌ TẮT điều khiển bóng!")
+        controlButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        controlButton.Text = "⭕ CONTROL OFF"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        statusLabel.Text = "✗ Control Disabled\n[Press to enable]"
+        print("❌ CONTROL OFF")
         
-        -- Xóa BodyVelocity khi tắt để bóng không bị đẩy
-        local ball = getBall()
+        -- Xóa BodyVelocity
+        local ball = findBall()
         if ball then
             local bodyVel = ball:FindFirstChildOfClass("BodyVelocity")
-            if bodyVel then
-                bodyVel:Destroy()
-            end
+            if bodyVel then bodyVel:Destroy() end
         end
     end
+end
+
+local function toggleMenu()
+    CONFIG.menuVisible = not CONFIG.menuVisible
+    
+    local targetSize = CONFIG.menuVisible 
+        and UDim2.new(0, 280, 0, 240)
+        or UDim2.new(0, 280, 0, 35)
+    
+    mainFrame:TweenSize(targetSize, "Out", "Quad", 0.2, true)
 end
 
 local function teleportToBall()
     local character = player.Character
     if not character then
-        print("⚠️ Không tìm thấy character!")
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
+        statusLabel.Text = "⚠ No Character Found"
         return
     end
     
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoidRootPart then
-        print("⚠️ Không tìm thấy HumanoidRootPart!")
+        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
+        statusLabel.Text = "⚠ HumanoidRootPart Not Found"
         return
     end
     
-    local ball = getBall()
+    local ball = findBall()
     if ball then
-        -- Teleport gần bóng nhưng không quá xa
-        local safeOffset = Vector3.new(0, 3, -3)
-        humanoidRootPart.CFrame = CFrame.new(ball.Position + safeOffset)
-        print("📍 Đã tele đến bóng!")
+        local safePos = ball.Position + Vector3.new(2, 3, -2)
+        humanoidRootPart.CFrame = CFrame.new(safePos)
+        
+        statusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+        statusLabel.Text = "✓ Teleported!\n[Enjoy!]"
+        print("📍 Teleported to ball")
+        
+        task.wait(2)
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        statusLabel.Text = "✓ Ready\n[Press V to hide]"
     else
-        print("⚠️ Không tìm thấy bóng!")
+        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        statusLabel.Text = "✗ Ball Not Found"
+        print("⚠️ Ball not found")
     end
 end
 
 local function controlBall()
-    if not ballControlEnabled then return end
+    if not CONFIG.ballControlEnabled then return end
     
     local character = player.Character
     if not character then return end
     
-    local ball = getBall()
+    local ball = findBall()
     if not ball then return end
     
-    local moveDirection = Vector3.new(0, 0, 0)
+    local moveDir = Vector3.new(0, 0, 0)
     
     if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        moveDirection = moveDirection + Vector3.new(0, 0, -1)
+        moveDir = moveDir + Vector3.new(0, 0, -1)
     end
     if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-        moveDirection = moveDirection + Vector3.new(0, 0, 1)
+        moveDir = moveDir + Vector3.new(0, 0, 1)
     end
     if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-        moveDirection = moveDirection + Vector3.new(-1, 0, 0)
+        moveDir = moveDir + Vector3.new(-1, 0, 0)
     end
     if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-        moveDirection = moveDirection + Vector3.new(1, 0, 0)
+        moveDir = moveDir + Vector3.new(1, 0, 0)
     end
     
-    if moveDirection.Magnitude > 0 then
-        moveDirection = moveDirection.Unit
+    if moveDir.Magnitude > 0 then
+        moveDir = moveDir.Unit
         
-        -- Kiểm tra và tạo BodyVelocity nếu cần
         local bodyVel = ball:FindFirstChildOfClass("BodyVelocity")
         if not bodyVel then
             bodyVel = Instance.new("BodyVelocity")
@@ -213,12 +276,11 @@ local function controlBall()
             bodyVel.Parent = ball
         end
         
-        bodyVel.Velocity = moveDirection * ballSpeed
+        bodyVel.Velocity = moveDir * CONFIG.ballSpeed
     else
-        -- Tắt velocity khi không bấm phím
         local bodyVel = ball:FindFirstChildOfClass("BodyVelocity")
         if bodyVel then
-            bodyVel.Velocity = Vector3.new(0, 0, 0)
+            bodyVel.Velocity = bodyVel.Velocity * 0.95
         end
     end
     
@@ -226,86 +288,92 @@ local function controlBall()
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     if humanoidRootPart then
         local ballPos = ball.Position
-        local cameraOffset = Vector3.new(0, 2, 5)
-        
-        -- Hạn chế camera không quá xa
-        local cameraDist = (ballPos - humanoidRootPart.Position).Magnitude
-        if cameraDist < 100 then
-            workspace.CurrentCamera.CFrame = CFrame.new(ballPos + cameraOffset, ballPos)
+        if (ballPos - humanoidRootPart.Position).Magnitude < 150 then
+            local camOffset = Vector3.new(0, 2, 5)
+            workspace.CurrentCamera.CFrame = CFrame.new(ballPos + camOffset, ballPos)
         end
     end
 end
 
--- ===================== KẾT NỐI SỰ KIỆN =====================
+-- ===================== SỰ KIỆN =====================
 
--- Nút Control - bật/tắt điều khiển
-controlButton.MouseButton1Click:Connect(function()
-    toggleBallControl()
-end)
+controlButton.MouseButton1Click:Connect(toggleControl)
+teleportButton.MouseButton1Click:Connect(teleportToBall)
+closeButton.MouseButton1Click:Connect(toggleMenu)
 
--- Nút Teleport
-teleportButton.MouseButton1Click:Connect(function()
-    teleportToBall()
-end)
-
--- ✨ KÉOTYPI MENU (Dragging Menu)
+-- Kéo Menu
 titleLabel.MouseButton1Down:Connect(function()
-    isMenuDragging = true
-    menuDragStart = mouse.Position
-    menuDragOffset = mainFrame.Position
+    CONFIG.isMenuDragging = true
+    CONFIG.menuDragStart = mouse.Position
+    CONFIG.menuDragOffset = mainFrame.Position
 end)
 
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
+UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isMenuDragging = false
+        CONFIG.isMenuDragging = false
     end
 end)
 
+-- Chuột di chuyển
 mouse.Move:Connect(function()
-    -- Kéo menu
-    if isMenuDragging then
-        local dragDelta = mouse.Position - menuDragStart
-        mainFrame.Position = menuDragOffset + UDim2.new(0, dragDelta.X, 0, dragDelta.Y)
+    if CONFIG.isMenuDragging then
+        local delta = mouse.Position - CONFIG.menuDragStart
+        mainFrame.Position = CONFIG.menuDragOffset + UDim2.new(0, delta.X, 0, delta.Y)
     end
     
-    -- Kéo slider tốc độ
-    if not isMenuDragging then
-        local mouseOverSlider = mouse.X >= speedSlider.AbsolutePosition.X and 
-                               mouse.X <= speedSlider.AbsolutePosition.X + speedSlider.AbsoluteSize.X and
-                               mouse.Y >= speedSlider.AbsolutePosition.Y and 
-                               mouse.Y <= speedSlider.AbsolutePosition.Y + speedSlider.AbsoluteSize.Y
+    -- Slider
+    if not CONFIG.isMenuDragging and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        local isOverSlider = mouse.X >= speedSlider.AbsolutePosition.X and 
+                            mouse.X <= speedSlider.AbsolutePosition.X + speedSlider.AbsoluteSize.X and
+                            mouse.Y >= speedSlider.AbsolutePosition.Y and 
+                            mouse.Y <= speedSlider.AbsolutePosition.Y + speedSlider.AbsoluteSize.Y
         
-        if mouseOverSlider and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-            local sliderPos = mouse.X - speedSlider.AbsolutePosition.X
-            sliderPos = math.max(0, math.min(sliderPos, speedSlider.AbsoluteSize.X))
+        if isOverSlider then
+            local sliderX = mouse.X - speedSlider.AbsolutePosition.X
+            sliderX = math.max(0, math.min(sliderX, speedSlider.AbsoluteSize.X))
             
-            local percentage = sliderPos / speedSlider.AbsoluteSize.X
-            ballSpeed = math.floor(percentage * ballMaxSpeed)
+            local percent = sliderX / speedSlider.AbsoluteSize.X
+            CONFIG.ballSpeed = math.max(1, math.floor(percent * CONFIG.ballMaxSpeed))
             
-            sliderButton.Size = UDim2.new(percentage, 0, 1, 0)
-            speedLabel.Text = "Speed: " .. ballSpeed
+            sliderButton.Size = UDim2.new(percent, 0, 1, 0)
+            speedLabel.Text = "⚡ Speed: " .. CONFIG.ballSpeed
         end
     end
 end)
 
--- Loop chính - điều khiển bóng
-RunService.RenderStepped:Connect(function()
-    controlBall()
-end)
-
--- Kiểm tra game state
-game:GetService("RunService").Heartbeat:Connect(function()
-    if ballControlEnabled and not player.Character then
-        ballControlEnabled = false
-        controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        controlButton.Text = "CONTROL OFF"
+-- Toggle Menu - Phím V
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.V then
+        toggleMenu()
     end
 end)
 
-print("🎮 Blue Lock Ball Control v3 Loaded!")
-print("📖 Hướng dẫn:")
-print("  - Kéo menu ở thanh 'Ball Control Gui'")
-print("  - Nhấn CONTROL ON/OFF để bật/tắt")
-print("  - Nhấn TELEPORT để tele đến bóng")
-print("  - Dùng W/A/S/D để điều khiển bóng")
-print("  - Kéo slider để chỉnh tốc độ")
+-- Loop chính
+RunService.RenderStepped:Connect(controlBall)
+
+-- Respawn
+player.CharacterAdded:Connect(function()
+    CONFIG.ballControlEnabled = false
+    controlButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    controlButton.Text = "⭕ CONTROL OFF"
+    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    statusLabel.Text = "✓ New Character Loaded"
+end)
+
+-- ===================== THÔNG TIN =====================
+print("=" .. string.rep("=", 50))
+print("✅ Blue Lock Ball Control v2 - Clean Script")
+print("=" .. string.rep("=", 50))
+print("")
+print("📖 HƯỚNG DẪN SỬ DỤNG:")
+print("  🎮 V = Ẩn/Hiện Menu")
+print("  🎮 W/A/S/D = Điều khiển bóng")
+print("  🎮 Nhấn CONTROL = Bật/Tắt")
+print("  🎮 Nhấn TELEPORT = Tele đến bóng")
+print("  🎮 Kéo Slider = Chỉnh tốc độ")
+print("  🎮 Kéo Thanh Title = Di chuyển menu")
+print("")
+print("✨ Script này không chứa API Keys")
+print("✨ An toàn để chia sẻ với mọi người")
+print("=" .. string.rep("=", 50))

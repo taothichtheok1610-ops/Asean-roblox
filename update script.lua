@@ -1,4 +1,4 @@
--- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK (FIX TOUCH/JOYSTICK)
+-- DELTA X: FULL ESP + AIMBOT + LOCK AIM + WALKSPEED (1-2000) + AUTO CLICK
 if _G.Delta_Cleanup then pcall(_G.Delta_Cleanup) end
 
 local Players = game:GetService("Players")
@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -328,7 +329,7 @@ createSpeedBtn("+10", 0.50, 0.25, 10)
 createSpeedBtn("+100", 0.75, 0.25, 100)
 
 -- Controls: Auto Click (Tốc độ đánh ms)
-createToggle("AutoClick", "⚔️ Auto Click (Mobile Fix)")
+createToggle("AutoClick", "⚔️ Auto Click")
 
 local clickInfoLabel = Instance.new("TextLabel")
 clickInfoLabel.Size = UDim2.new(0.95, 0, 0, 20)
@@ -584,34 +585,31 @@ end
 Players.PlayerRemoving:Connect(removePlayerDrawings)
 
 ----------------------------------------------------
--- 6. AUTO CLICK CHUYÊN DỤNG CHO MOBILE (KHÔNG CAN THIỆP CẢM ỨNG)
+-- 6. AUTO CLICK TỐI ƯU (VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT)
 ----------------------------------------------------
 task.spawn(function()
 	while true do
 		if Settings.AutoClick then
 			pcall(function()
 				local char = LocalPlayer.Character
-				if char then
-					local humanoid = char:FindFirstChildOfClass("Humanoid")
-					if humanoid then
-						-- Đảm bảo trạng thái di chuyển luôn sẵn sàng
-						humanoid.AutoRotate = true
-						humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
-						humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
-					end
-					
+				if char and char:FindFirstChildOfClass("Humanoid") then
 					local tool = char:FindFirstChildOfClass("Tool")
+					
+					-- Ưu tiên 1: Dùng Activate() của Tool (Đảm bảo vừa đánh vừa di chuyển mượt)
 					if tool then
-						-- Gọi trực tiếp qua Activate() trong luồng độc lập
-						coroutine.wrap(function()
-							tool:Activate()
-						end)()
+						tool:Activate()
+					else
+						-- Ưu tiên 2: Giả lập nhấp nhả chuột có độ trễ cực ngắn tránh khựng nhân vật
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end)
 		end
 		
-		local delayTime = math.max(Settings.ClickInterval / 1000, 0.1)
+		-- Tần suất bấm tối thiểu là 0.05s (50ms) để nhân vật không bị khựng di chuyển
+		local delayTime = math.max(Settings.ClickInterval / 1000, 0.05)
 		task.wait(delayTime)
 	end
 end)
@@ -853,3 +851,5 @@ end
 
 for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
 table.insert(ScriptConnections, Players.PlayerAdded:Connect(applyESP))
+
+print("✅ ĐÃ CẬP NHẬT AUTO CLICK VỪA ĐÁNH VỪA DI CHUYỂN MƯỢT MA!")

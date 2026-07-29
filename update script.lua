@@ -1,32 +1,23 @@
--- Blue Lock Ball Control Script
--- Script này được dùng trong LocalScript (StarterPlayer > StarterCharacterScripts)
+-- Blue Lock Ball Control Script v2
+-- 📍 ĐẶT TẠI: StarterPlayer > StarterPlayerScripts (KHÔNG phải CharacterScripts)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-local humanoid = character:WaitForChild("Humanoid")
-
--- Tìm quả bóng (thay tên theo game của bạn)
-local ball = workspace:WaitForChild("Ball") or workspace:FindFirstChild("Ball")
-
-local camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
 
 -- ===================== BIẾN CẤU HÌNH =====================
 local ballControlEnabled = false
 local ballSpeed = 81
 local ballMaxSpeed = 200
-local originalCameraPos = camera.CFrame
-local originalCameraFocus = camera.Focus
 
 -- ===================== TẠO GUI MENU =====================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BallControlGui"
 screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 10
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- Frame chính
@@ -56,7 +47,7 @@ local controlButton = Instance.new("TextButton")
 controlButton.Name = "ControlButton"
 controlButton.Size = UDim2.new(1, -10, 0, 35)
 controlButton.Position = UDim2.new(0, 5, 0, 40)
-controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- Đỏ = CONTROL OFF
+controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 controlButton.BorderSizePixel = 0
 controlButton.Text = "CONTROL OFF"
 controlButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -69,7 +60,7 @@ local teleportButton = Instance.new("TextButton")
 teleportButton.Name = "TeleportButton"
 teleportButton.Size = UDim2.new(1, -10, 0, 35)
 teleportButton.Position = UDim2.new(0, 5, 0, 80)
-teleportButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255) -- Xanh = Teleport to Ball
+teleportButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
 teleportButton.BorderSizePixel = 0
 teleportButton.Text = "Teleport to Ball"
 teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -108,41 +99,69 @@ sliderButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 sliderButton.BorderSizePixel = 0
 sliderButton.Parent = speedSlider
 
+print("✅ Menu đã tạo! Bạn sẽ thấy nó ở trên cùng màn hình")
+
 -- ===================== CÁC HÀM CHÍNH =====================
 
--- Hàm bật/tắt điều khiển bóng
+local function getBall()
+    -- Tìm bóng với nhiều tên khác nhau
+    local ball = workspace:FindFirstChild("Ball")
+    if ball then return ball end
+    
+    ball = workspace:FindFirstChild("football")
+    if ball then return ball end
+    
+    ball = workspace:FindFirstChild("Soccer")
+    if ball then return ball end
+    
+    -- Tìm bóng theo Part có Sphere shape
+    for _, part in pairs(workspace:GetDescendants()) do
+        if part:IsA("Part") and part.Shape == Enum.PartType.Ball then
+            return part
+        end
+    end
+    
+    return nil
+end
+
 local function toggleBallControl()
     ballControlEnabled = not ballControlEnabled
     
     if ballControlEnabled then
-        controlButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0) -- Xanh = CONTROL ON
+        controlButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
         controlButton.Text = "CONTROL ON"
-        
-        -- Chuyển camera sang góc nhìn bóng
-        if ball then
-            local ballPos = ball.Position
-            camera.CFrame = CFrame.new(ballPos + Vector3.new(0, 2, 5), ballPos)
-        end
+        print("✅ Bật điều khiển bóng!")
     else
-        controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- Đỏ = CONTROL OFF
+        controlButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
         controlButton.Text = "CONTROL OFF"
-        
-        -- Quay lại view bình thường
-        camera.CFrame = CFrame.new(humanoidRootPart.Position + Vector3.new(0, 2, 5), humanoidRootPart.Position)
+        print("❌ Tắt điều khiển bóng!")
     end
 end
 
--- Hàm tele đến bóng
 local function teleportToBall()
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local ball = getBall()
     if ball then
         humanoidRootPart.CFrame = CFrame.new(ball.Position + Vector3.new(0, 3, -5))
-        print("Teleported to ball!")
+        print("📍 Đã tele đến bóng!")
+    else
+        print("⚠️ Không tìm thấy bóng!")
     end
 end
 
--- Hàm điều khiển bóng với phím mũi tên
 local function controlBall()
-    if not ballControlEnabled or not ball then return end
+    if not ballControlEnabled then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local ball = getBall()
+    if not ball then return end
     
     local moveDirection = Vector3.new(0, 0, 0)
     
@@ -162,41 +181,37 @@ local function controlBall()
     if moveDirection.Magnitude > 0 then
         moveDirection = moveDirection.Unit
         
-        -- Áp dụng lực cho bóng
-        if ball:FindFirstChild("BodyVelocity") then
-            ball.BodyVelocity.Velocity = moveDirection * ballSpeed
-        else
-            -- Nếu không có BodyVelocity, tạo mới
-            local bodyVel = Instance.new("BodyVelocity")
-            bodyVel.Velocity = moveDirection * ballSpeed
+        -- Kiểm tra và tạo BodyVelocity nếu cần
+        local bodyVel = ball:FindFirstChildOfClass("BodyVelocity")
+        if not bodyVel then
+            bodyVel = Instance.new("BodyVelocity")
             bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
             bodyVel.Parent = ball
         end
+        
+        bodyVel.Velocity = moveDirection * ballSpeed
     end
-end
-
--- Hàm cập nhật camera khi điều khiển bóng
-local function updateCameraWhileControlling()
-    if not ballControlEnabled or not ball then return end
     
-    local ballPos = ball.Position
-    local cameraOffset = Vector3.new(0, 2, 5)
-    camera.CFrame = CFrame.new(ballPos + cameraOffset, ballPos)
+    -- Update camera
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        local ballPos = ball.Position
+        local cameraOffset = Vector3.new(0, 2, 5)
+        workspace.CurrentCamera.CFrame = CFrame.new(ballPos + cameraOffset, ballPos)
+    end
 end
 
 -- ===================== KẾT NỐI SỰ KIỆN =====================
 
--- Click nút Control
 controlButton.MouseButton1Click:Connect(function()
     toggleBallControl()
 end)
 
--- Click nút Teleport
 teleportButton.MouseButton1Click:Connect(function()
     teleportToBall()
 end)
 
--- Cập nhật slider tốc độ
+-- Slider
 local sliderDragging = false
 
 sliderButton.MouseButton1Down:Connect(function()
@@ -222,17 +237,9 @@ mouse.Move:Connect(function()
     end
 end)
 
--- Lặp chính để điều khiển bóng
+-- Loop chính
 RunService.RenderStepped:Connect(function()
-    if ballControlEnabled then
-        controlBall()
-        updateCameraWhileControlling()
-    end
+    controlBall()
 end)
 
--- Xử lý khi nhân vật chết
-humanoid.Died:Connect(function()
-    screenGui:Destroy()
-end)
-
-print("Blue Lock Ball Control Script Loaded!")
+print("🎮 Blue Lock Ball Control v2 Loaded!")

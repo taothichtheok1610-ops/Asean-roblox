@@ -1,5 +1,5 @@
--- [[ San Diego - Chỉnh Cam Lệch (Camera Offset) ]]
--- [[ Dùng Delta Mobile, không ảnh hưởng ESP/Aimbot ]]
+-- [[ San Diego - Sửa lỗi Camera lệch khỏi hướng súng ]]
+-- [[ Đồng bộ hóa CFrame của Camera và HumanoidRootPart ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -7,93 +7,86 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- [[ CÀI ĐẶT OFFSET ]]
-local OffsetX = 0.5   -- Lệch ngang (0 = giữa, dương = phải, âm = trái)
-local OffsetY = 0.3   -- Lệch dọc (0 = giữa, dương = lên, âm = xuống)
-local OffsetZ = 0.0   -- Lệch sâu (0 = giữa, dương = ra sau, âm = vào trước)
-local Enabled = true  -- Bật/tắt
+-- [[ CẤU HÌNH ]]
+local Enabled = true
+local OffsetX = 0    -- Lệch ngang (0 = chuẩn)
+local OffsetY = 1.2  -- Lệch dọc (thường để cao hơn đầu 1.2 stud)
+local OffsetZ = 0    -- Lệch sâu
 
--- [[ HÀM TÍNH OFFSET ]]
-local function GetOffsettedCFrame()
+-- [[ HÀM ĐỒNG BỘ CAMERA VỚI SÚNG ]]
+local function SyncCameraWithGun()
     local character = LocalPlayer.Character
-    if not character then return Camera.CFrame end
+    if not character then return end
     
+    -- Lấy HumanoidRootPart (định hướng nhân vật)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return Camera.CFrame end
+    if not rootPart then return end
     
-    -- Lấy hướng nhìn hiện tại của camera
-    local lookVector = Camera.CFrame.LookVector
-    local upVector = Camera.CFrame.UpVector
-    local rightVector = Camera.CFrame.RightVector
+    -- Lấy Head (để lấy vị trí chính xác)
+    local head = character:FindFirstChild("Head")
+    if not head then return end
     
-    -- Tính vị trí offset
-    local offsetPos = Camera.CFrame.Position 
-        + (rightVector * OffsetX) 
-        + (upVector * OffsetY) 
-        + (lookVector * OffsetZ)
+    -- Lấy tool đang cầm (súng)
+    local tool = character:FindFirstChildOfClass("Tool")
+    local gunPart = nil
+    if tool then
+        -- Tìm Part chính của súng (thường là Handle hoặc Part đầu tiên)
+        for _, child in pairs(tool:GetChildren()) do
+            if child:IsA("BasePart") then
+                gunPart = child
+                break
+            end
+        end
+    end
     
-    -- Trả về CFrame mới với vị trí offset và hướng nhìn giữ nguyên
-    return CFrame.new(offsetPos, offsetPos + lookVector)
+    -- Lấy hướng nhìn từ CFrame của RootPart (hoặc súng nếu có)
+    local rootCF = rootPart.CFrame
+    local lookVector = rootCF.LookVector
+    
+    -- Nếu có súng, lấy hướng từ súng để chính xác hơn
+    if gunPart then
+        lookVector = gunPart.CFrame.LookVector
+    end
+    
+    -- Vị trí camera: từ đầu + offset
+    local camPos = head.Position + Vector3.new(0, OffsetY, 0)  -- Đặt trên đầu
+    
+    -- Nếu có súng, lấy vị trí súng làm chuẩn
+    if gunPart then
+        camPos = gunPart.Position + Vector3.new(OffsetX, OffsetY, OffsetZ)
+    end
+    
+    -- Tạo CFrame mới: vị trí cam, nhìn theo hướng lookVector
+    local newCF = CFrame.new(camPos, camPos + lookVector)
+    
+    -- Áp dụng
+    Camera.CFrame = newCF
 end
 
 -- [[ VÒNG LẶP CHÍNH ]]
 RunService.RenderStepped:Connect(function()
     if Enabled then
-        local newCF = GetOffsettedCFrame()
-        if newCF then
-            Camera.CFrame = newCF
-        end
+        SyncCameraWithGun()
     end
 end)
 
--- [[ ĐIỀU KHIỂN BẰNG PHÍM (TÙY CHỌN) ]]
+-- [[ ĐIỀU KHIỂN BẰNG PHÍM ]]
 local UserInputService = game:GetService("UserInputService")
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
-    -- Phím O: Bật/tắt
     if input.KeyCode == Enum.KeyCode.O then
         Enabled = not Enabled
-        if Enabled then
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Cam Offset",
-                Text = "ĐÃ BẬT",
-                Duration = 1
-            })
-        else
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Cam Offset",
-                Text = "ĐÃ TẮT",
-                Duration = 1
-            })
-        end
+        print("Cam Sync:", Enabled and "ON" or "OFF")
     end
     
-    -- Phím I: Tăng offset ngang (sang phải)
-    if input.KeyCode == Enum.KeyCode.I then
-        OffsetX = OffsetX + 0.1
-        print("OffsetX:", OffsetX)
-    end
-    
-    -- Phím U: Giảm offset ngang (sang trái)
-    if input.KeyCode == Enum.KeyCode.U then
-        OffsetX = OffsetX - 0.1
-        print("OffsetX:", OffsetX)
-    end
-    
-    -- Phím P: Tăng offset dọc (lên)
-    if input.KeyCode == Enum.KeyCode.P then
-        OffsetY = OffsetY + 0.1
-        print("OffsetY:", OffsetY)
-    end
-    
-    -- Phím L: Giảm offset dọc (xuống)
-    if input.KeyCode == Enum.KeyCode.L then
-        OffsetY = OffsetY - 0.1
-        print("OffsetY:", OffsetY)
-    end
+    -- Điều chỉnh offset
+    if input.KeyCode == Enum.KeyCode.I then OffsetY = OffsetY + 0.2 print("OffsetY:", OffsetY) end
+    if input.KeyCode == Enum.KeyCode.U then OffsetY = OffsetY - 0.2 print("OffsetY:", OffsetY) end
+    if input.KeyCode == Enum.KeyCode.P then OffsetX = OffsetX + 0.2 print("OffsetX:", OffsetX) end
+    if input.KeyCode == Enum.KeyCode.L then OffsetX = OffsetX - 0.2 print("OffsetX:", OffsetX) end
 end)
 
-print("[[ CAM LỆCH SAN DIEGO ĐÃ TẢI ]]")
-print("[[ O: Bật/tắt | I/U: Lệch ngang | P/L: Lệch dọc ]]")
+print("[[ CAMERA SYNC ĐÃ TẢI - Phím O: Bật/Tắt ]]")
+print("[[ I/U: Tăng/Giảm chiều cao | P/L: Tăng/Giảm lệch ngang ]]")

@@ -1,6 +1,6 @@
--- [[ Script Aimbot cho Roblox: San Diego (phiên bản 1.0) ]]
+-- [[ Script Aimbot cho Delta Mobile - Roblox San Diego ]]
 -- [[ Tác giả: palofsc ]]
--- [[ Sử dụng với Synapse X, Krnl, hoặc Script Executor tương thích ]]
+-- [[ Sử dụng với Delta Executor (Mobile) ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -9,24 +9,22 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
--- [[ CẤU HÌNH AIMBOT ]]
+-- [[ CẤU HÌNH ]]
 local Settings = {
-    Enabled = true,              -- Bật/tắt aimbot
-    TeamCheck = true,           -- Chỉ aim vào đối thủ khác team
-    VisibleCheck = true,        -- Chỉ aim khi mục tiêu có thể nhìn thấy
-    FOV = 200,                  -- Phạm vi tìm kiếm (pixels)
-    Smoothness = 0.3,           -- Độ mượt (0 = tắt, 0.1-0.5 là tốt)
-    AimPart = "Head",           -- Bộ phận nhắm: "Head", "HumanoidRootPart", "Torso"
-    Keybind = Enum.KeyCode.RightShift -- Phím bật/tắt (Right Shift)
+    Enabled = true,
+    TeamCheck = true,
+    VisibleCheck = false,  -- Tắt kiểm tra tầm nhìn để tránh lỗi trên mobile
+    FOV = 300,
+    Smoothness = 0.2,
+    AimPart = "Head",
+    Keybind = 14  -- Mã phím D (14) cho Delta Mobile
 }
 
--- [[ BIẾN TOÀN CỤC ]]
+-- [[ BIẾN ]]
 local Target = nil
 local AimbotEnabled = true
-local CurrentTarget = nil
-local LastTarget = nil
 
--- [[ HÀM TÌM MỤC TIÊU TỐT NHẤT ]]
+-- [[ HÀM TÌM MỤC TIÊU (TỐI ƯU CHO MOBILE) ]]
 local function GetClosestPlayer()
     local closest = nil
     local shortestDistance = Settings.FOV
@@ -38,36 +36,38 @@ local function GetClosestPlayer()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            -- Kiểm tra team (nếu bật)
+            -- Bỏ qua đồng đội
             if Settings.TeamCheck then
                 local LocalTeam = LocalPlayer.Team
                 local TargetTeam = player.Team
                 if LocalTeam and TargetTeam and LocalTeam == TargetTeam then
-                    continue -- Bỏ qua đồng đội
+                    continue
                 end
             end
 
             local targetChar = player.Character
             if not targetChar then continue end
+
             local targetPart = targetChar:FindFirstChild(Settings.AimPart)
             if not targetPart then
                 targetPart = targetChar:FindFirstChild("HumanoidRootPart")
                 if not targetPart then continue end
             end
 
-            -- Kiểm tra tầm nhìn (nếu bật)
+            -- Kiểm tra tầm nhìn (CÓ THỂ GÂY LỖI TRÊN MOBILE)
             if Settings.VisibleCheck then
                 local ray = Ray.new(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000)
-                local hit, position = workspace:FindPartOnRay(ray, character, false, true)
-                if hit and hit:IsDescendantOf(targetChar) == false then
-                    continue -- Bị chặn bởi vật cản
+                local hit = workspace:FindPartOnRay(ray, character, false, true)
+                if hit and not hit:IsDescendantOf(targetChar) then
+                    continue
                 end
             end
 
-            -- Chuyển đổi vị trí mục tiêu sang tọa độ màn hình
+            -- Kiểm tra vị trí màn hình
             local vector, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
             if not onScreen then continue end
 
+            -- Tính khoảng cách (FOV)
             local distance = (Vector2.new(vector.X, vector.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
             if distance < shortestDistance then
                 shortestDistance = distance
@@ -78,36 +78,13 @@ local function GetClosestPlayer()
     return closest
 end
 
--- [[ HÀM LÀM MƯỢT MỤC TIÊU ]]
-local function SmoothAim(targetPos)
-    if not targetPos then return end
-    local currentPos = Camera.CFrame.Position
-    local direction = (targetPos - currentPos).Unit
-    local newCFrame = CFrame.new(currentPos, currentPos + direction)
-
-    -- Làm mượt bằng phép nội suy (Lerp)
-    local lerpFactor = Settings.Smoothness
-    local currentLookVector = Camera.CFrame.LookVector
-    local targetLookVector = newCFrame.LookVector
-    local smoothLookVector = currentLookVector:Lerp(targetLookVector, lerpFactor)
-
-    Camera.CFrame = CFrame.new(currentPos, currentPos + smoothLookVector)
-end
-
--- [[ HÀM CHÍNH AIMBOT ]]
+-- [[ HÀM AIMBOT CHÍNH (KHÔNG DÙNG mousemoverel) ]]
 local function AimbotLoop()
-    if not Settings.Enabled or not AimbotEnabled then
-        Target = nil
-        return
-    end
+    if not Settings.Enabled or not AimbotEnabled then return end
 
     local player = GetClosestPlayer()
-    if not player then
-        Target = nil
-        return
-    end
+    if not player then return end
 
-    Target = player
     local targetChar = player.Character
     if not targetChar then return end
 
@@ -117,41 +94,51 @@ local function AimbotLoop()
         if not aimPart then return end
     end
 
-    -- Tự động bắn (nếu muốn, có thể thêm logic)
-    -- game:GetService("VirtualUser"):CaptureController()
-    -- game:GetService("VirtualUser"):ClickButton2(Vector2.new(0,0))
+    -- Dùng CFrame để xoay camera (phương pháp duy nhất hoạt động trên Delta Mobile)
+    local cameraPos = Camera.CFrame.Position
+    local targetPos = aimPart.Position
+    local direction = (targetPos - cameraPos).Unit
+    local newCFrame = CFrame.new(cameraPos, cameraPos + direction)
 
-    -- Di chuyển chuột đến mục tiêu (nếu không dùng SmoothAim)
+    -- Làm mượt (nếu cần)
     if Settings.Smoothness > 0 then
-        SmoothAim(aimPart.Position)
+        local currentLook = Camera.CFrame.LookVector
+        local targetLook = newCFrame.LookVector
+        local smoothLook = currentLook:Lerp(targetLook, Settings.Smoothness)
+        Camera.CFrame = CFrame.new(cameraPos, cameraPos + smoothLook)
     else
-        -- Di chuyển tức thời
-        local vector, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
-        if onScreen then
-            mousemoverel(vector.X - Mouse.X, vector.Y - Mouse.Y)
-        end
+        Camera.CFrame = newCFrame
     end
 end
 
--- [[ BẮT SỰ KIỆN BÀN PHÍM ĐỂ BẬT/TẮT ]]
+-- [[ BẮT PHÍM BẬT/TẮT (D - Mã 14) ]]
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Settings.Keybind then
+    if input.KeyCode == Enum.KeyCode.D then  -- Hoặc dùng Settings.Keybind nếu muốn
         AimbotEnabled = not AimbotEnabled
         if AimbotEnabled then
-            print("[Aimbot] Đã bật")
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Aimbot",
+                Text = "ĐÃ BẬT",
+                Duration = 1
+            })
         else
-            print("[Aimbot] Đã tắt")
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Aimbot",
+                Text = "ĐÃ TẮT",
+                Duration = 1
+            })
         end
     end
 end)
 
--- [[ CHẠY VÒNG LẶP CHÍNH ]]
-RunService.RenderStepped:Connect(function()
-    AimbotLoop()
-end)
+-- [[ VÒNG LẶP CHÍNH ]]
+RunService.RenderStepped:Connect(AimbotLoop)
 
--- [[ HIỂN THỊ THÔNG BÁO ]]
-print("[[ Script Aimbot San Diego đã tải thành công! ]]")
-print("[[ Phím bật/tắt: Right Shift ]]")
-print("[[ Cấu hình trong Settings ở đầu script ]]")
+-- [[ THÔNG BÁO KHỞI ĐỘNG ]]
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Aimbot San Diego",
+    Text = "Đã tải! Nhấn D để bật/tắt",
+    Duration = 3
+})
+print("Aimbot San Diego đã tải thành công trên Delta Mobile!")
